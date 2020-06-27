@@ -14,42 +14,42 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import keras.backend
-import keras.layers
+import tensorflow.keras.backend as K
+from tensorflow.keras import layers
 import numpy as np
 
 
-class Shape(keras.layers.Layer):
+class Shape(layers.Layer):
     def call(self, inputs, **kwargs):
-        return keras.backend.shape(inputs)
+        return K.shape(inputs)
 
     def compute_output_shape(self, input_shape):
         return (len(input_shape),)
 
 
-class ConcatenateBoxes(keras.layers.Layer):
+class ConcatenateBoxes(layers.Layer):
     def call(self, inputs, **kwargs):
         boxes, other = inputs
 
-        boxes_shape = keras.backend.shape(boxes)
-        other_shape = keras.backend.shape(other)
-        other = keras.backend.reshape(other, (boxes_shape[0], boxes_shape[1], -1))
+        boxes_shape = K.shape(boxes)
+        other_shape = K.shape(other)
+        other = K.reshape(other, (boxes_shape[0], boxes_shape[1], -1))
 
-        return keras.backend.concatenate([boxes, other], axis=2)
+        return K.concatenate([boxes, other], axis=2)
 
     def compute_output_shape(self, input_shape):
         boxes_shape, other_shape = input_shape
         return boxes_shape[:2] + (np.prod([s for s in other_shape[2:]]) + 4,)
 
 
-class Cast(keras.layers.Layer):
+class Cast(layers.Layer):
     def __init__(self, dtype=None, *args, **kwargs):
         if dtype is None:
-            dtype = keras.backend.floatx()
+            dtype = K.floatx()
         self.dtype = dtype
 
         super(Cast, self).__init__(*args, **kwargs)
 
     def call(self, inputs, **kwargs):
-        outputs = keras.backend.cast(inputs, self.dtype)
+        outputs = K.cast(inputs, self.dtype)
         return outputs

@@ -20,9 +20,9 @@ import argparse
 import os
 import sys
 
-from keras_retinanet.utils.config import read_config_file
-from keras_retinanet.utils.gpu import setup_gpu
-from keras_retinanet.utils.keras_version import check_keras_version
+from tf_retinanet.utils.config import read_config_file
+from tf_retinanet.utils.gpu import setup_gpu
+from tf_retinanet.utils.version import check_tf_version
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
@@ -97,7 +97,7 @@ def main(args=None):
     args = parse_args(args)
 
     # make sure keras is the minimum required version
-    check_keras_version()
+    check_tf_version()
 
     # optionally choose specific GPU
     if args.gpu:

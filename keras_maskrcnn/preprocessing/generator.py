@@ -18,26 +18,27 @@ import numpy as np
 import random
 import warnings
 
-import keras
+from tensorflow.keras.utils import Sequence
+import tensorflow.keras.backend as K
 
-from keras_retinanet.utils.anchors import (
+from tf_retinanet.utils.anchors import (
     anchor_targets_bbox,
     bbox_transform,
     anchors_for_shape,
     guess_shapes
 )
-from keras_retinanet.utils.config import parse_anchor_parameters
-from keras_retinanet.utils.image import (
+from tf_retinanet.utils.config import parse_anchor_parameters
+from tf_retinanet.utils.image import (
     TransformParameters,
     adjust_transform_for_image,
     apply_transform,
     preprocess_image,
     resize_image,
 )
-from keras_retinanet.utils.transform import transform_aabb
+from tf_retinanet.utils.transform import transform_aabb
 
 
-class Generator(keras.utils.Sequence):
+class Generator(Sequence):
     def __init__(
         self,
         transform_generator = None,
@@ -179,7 +180,7 @@ class Generator(keras.utils.Sequence):
         annotations['bboxes'] *= image_scale
 
         # convert to the wanted keras floatx
-        image = keras.backend.cast_to_floatx(image)
+        image = K.cast_to_floatx(image)
 
         return image, annotations
 
@@ -210,7 +211,7 @@ class Generator(keras.utils.Sequence):
         max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
 
         # construct an image batch object
-        image_batch = np.zeros((self.batch_size,) + max_shape, dtype=keras.backend.floatx())
+        image_batch = np.zeros((self.batch_size,) + max_shape, dtype=K.floatx())
 
         # copy all images to the upper left part of the image batch object
         for image_index, image in enumerate(image_group):
@@ -241,7 +242,7 @@ class Generator(keras.utils.Sequence):
         # copy all annotations / masks to the batch
         max_annotations = max(len(a['masks']) for a in annotations_group)
         # masks_batch has shape: (batch size, max_annotations, bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_dimension)
-        masks_batch     = np.zeros((self.batch_size, max_annotations, 5 + 2 + max_shape[0] * max_shape[1]), dtype=keras.backend.floatx())
+        masks_batch     = np.zeros((self.batch_size, max_annotations, 5 + 2 + max_shape[0] * max_shape[1]), dtype=K.floatx())
         for index, annotations in enumerate(annotations_group):
             masks_batch[index, :annotations['bboxes'].shape[0], :4] = annotations['bboxes']
             masks_batch[index, :annotations['labels'].shape[0], 4] = annotations['labels']

@@ -16,24 +16,25 @@ limitations under the License.
 
 import warnings
 
-import keras
+import tensorflow.keras.backend as K
+from tensorflow.keras import layers
 import keras_resnet
 import keras_resnet.models
-import keras_retinanet.models.resnet
+import tf_retinanet.models.resnet
 from ..models import retinanet, Backbone
 
 
-class ResNetBackbone(Backbone, keras_retinanet.models.resnet.ResNetBackbone):
+class ResNetBackbone(Backbone, tf_retinanet.models.resnet.ResNetBackbone):
     def maskrcnn(self, *args, **kwargs):
         """ Returns a maskrcnn model using the correct backbone.
         """
         return resnet_maskrcnn(*args, backbone=self.backbone, **kwargs)
 
 
-def resnet_maskrcnn(num_classes, backbone='resnet50', inputs=None, modifier=None, mask_dtype=keras.backend.floatx(), **kwargs):
+def resnet_maskrcnn(num_classes, backbone='resnet50', inputs=None, modifier=None, mask_dtype=K.floatx(), **kwargs):
     # choose default input
     if inputs is None:
-        inputs = keras.layers.Input(shape=(None, None, 3), name='image')
+        inputs = layers.Input(shape=(None, None, 3), name='image')
 
     # create the resnet backbone
     if backbone == 'resnet50':

@@ -1,7 +1,7 @@
-import keras_retinanet.models
+import tf_retinanet.models
 
 
-class Backbone(keras_retinanet.models.Backbone):
+class Backbone(tf_retinanet.models.Backbone):
     """ This class stores additional information on backbones.
     """
     def __init__(self, backbone_name):
@@ -55,5 +55,5 @@ def load_model(filepath, backbone_name='resnet50'):
         ImportError: if h5py is not available.
         ValueError: In case of an invalid savefile.
     """
-    import keras.models
-    return keras.models.load_model(filepath, custom_objects=backbone(backbone_name).custom_objects)
+    from tensorflow.keras.models import load_model
+    return load_model(filepath, custom_objects=backbone(backbone_name).custom_objects)

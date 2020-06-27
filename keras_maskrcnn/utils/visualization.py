@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from keras_retinanet.utils.colors import label_color
+from tf_retinanet.utils.colors import label_color
 
 
 def draw_mask(image, box, mask, label=None, color=None, binarize_threshold=0.5):

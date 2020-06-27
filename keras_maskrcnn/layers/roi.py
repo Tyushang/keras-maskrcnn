@@ -1,6 +1,6 @@
-import keras.backend
-import keras.layers
-import keras_retinanet.backend
+import tensorflow.keras.backend as K
+from tensorflow.keras import layers
+import tf_retinanet.backend
 
 from .. import backend
 
@@ -8,7 +8,7 @@ from .. import backend
 import tensorflow as tf
 
 
-class RoiAlign(keras.layers.Layer):
+class RoiAlign(layers.Layer):
     def __init__(self, crop_size=(14, 14), parallel_iterations=32, **kwargs):
         self.crop_size = crop_size
         self.parallel_iterations = parallel_iterations
@@ -24,18 +24,18 @@ class RoiAlign(keras.layers.Layer):
         w = x2 - x1
         h = y2 - y1
 
-        size = keras.backend.sqrt(w * h)
+        size = K.sqrt(w * h)
 
-        levels = backend.floor(canonical_level + backend.log2(size / canonical_size + keras.backend.epsilon()))
-        levels = keras.backend.clip(levels, min_level, max_level)
+        levels = backend.floor(canonical_level + backend.log2(size / canonical_size + K.epsilon()))
+        levels = K.clip(levels, min_level, max_level)
 
         return levels
 
     def call(self, inputs, **kwargs):
-        image_shape = keras.backend.cast(inputs[0], keras.backend.floatx())
-        boxes       = keras.backend.stop_gradient(inputs[1])
-        scores      = keras.backend.stop_gradient(inputs[2])
-        fpn         = [keras.backend.stop_gradient(i) for i in inputs[3:]]
+        image_shape = K.cast(inputs[0], K.floatx())
+        boxes       = K.stop_gradient(inputs[1])
+        scores      = K.stop_gradient(inputs[2])
+        fpn         = [K.stop_gradient(i) for i in inputs[3:]]
 
         def _roi_align(args):
             boxes  = args[0]
@@ -50,18 +50,18 @@ class RoiAlign(keras.layers.Layer):
             ordered_indices = []
             for i in range(len(fpn)):
                 # select the boxes and classification from this pyramid level
-                indices = keras_retinanet.backend.where(keras.backend.equal(target_levels, i))
+                indices = tf_retinanet.backend.where(K.equal(target_levels, i))
                 ordered_indices.append(indices)
 
-                level_boxes = keras_retinanet.backend.gather_nd(boxes, indices)
-                fpn_shape   = keras.backend.cast(keras.backend.shape(fpn[i]), dtype=keras.backend.floatx())
+                level_boxes = tf_retinanet.backend.gather_nd(boxes, indices)
+                fpn_shape   = K.cast(K.shape(fpn[i]), dtype=K.floatx())
 
                 # convert to expected format for crop_and_resize
                 x1 = level_boxes[:, 0]
                 y1 = level_boxes[:, 1]
                 x2 = level_boxes[:, 2]
                 y2 = level_boxes[:, 3]
-                level_boxes = keras.backend.stack([
+                level_boxes = K.stack([
                     (y1 / image_shape[1] * fpn_shape[0]) / (fpn_shape[0] - 1),
                     (x1 / image_shape[2] * fpn_shape[1]) / (fpn_shape[1] - 1),
                     (y2 / image_shape[1] * fpn_shape[0] - 1) / (fpn_shape[0] - 1),
@@ -70,25 +70,25 @@ class RoiAlign(keras.layers.Layer):
 
                 # append the rois to the list of rois
                 rois.append(backend.crop_and_resize(
-                    keras.backend.expand_dims(fpn[i], axis=0),
+                    K.expand_dims(fpn[i], axis=0),
                     level_boxes,
-                    tf.zeros((keras.backend.shape(level_boxes)[0],), dtype='int32'),  # TODO: Remove this workaround (https://github.com/tensorflow/tensorflow/issues/33787).
+                    tf.zeros((K.shape(level_boxes)[0],), dtype='int32'),  # TODO: Remove this workaround (https://github.com/tensorflow/tensorflow/issues/33787).
                     self.crop_size
                 ))
 
             # concatenate rois to one blob
-            rois = keras.backend.concatenate(rois, axis=0)
+            rois = K.concatenate(rois, axis=0)
 
             # reorder rois back to original order
-            indices = keras.backend.concatenate(ordered_indices, axis=0)
-            rois    = keras_retinanet.backend.scatter_nd(indices, rois, keras.backend.cast(keras.backend.shape(rois), 'int64'))
+            indices = K.concatenate(ordered_indices, axis=0)
+            rois    = tf_retinanet.backend.scatter_nd(indices, rois, K.cast(K.shape(rois), 'int64'))
 
             return rois
 
-        roi_batch = keras_retinanet.backend.map_fn(
+        roi_batch = tf_retinanet.backend.map_fn(
             _roi_align,
             elems=[boxes, scores, fpn],
-            dtype=keras.backend.floatx(),
+            dtype=K.floatx(),
             parallel_iterations=self.parallel_iterations
         )
 

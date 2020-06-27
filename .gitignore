@@ -1,4 +1,6 @@
 __pycache__/
+keras_maskrcnn.egg-info/
+/.idea
 *.pyc
 /.pytest_cache
 /.cache

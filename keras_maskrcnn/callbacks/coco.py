@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import keras
+import tensorflow as tf
 from ..utils.coco_eval import evaluate_coco
 
 
-class CocoEval(keras.callbacks.Callback):
+class CocoEval(tf.keras.callbacks.Callback):
     def __init__(self, generator, threshold=0.05):
         self.generator = generator
         self.threshold = threshold

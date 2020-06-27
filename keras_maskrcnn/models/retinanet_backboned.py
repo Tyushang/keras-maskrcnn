@@ -1,33 +1,19 @@
-"""
-Copyright 2017-2018 Fizyr (https://fizyr.com)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+# __author__=u"Frank Jing"
 
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
+from tensorflow.keras import layers
 
-import keras
-
-# import keras.models
 import tf_retinanet.layers
 import tf_retinanet.models.retinanet
-import tf_retinanet.backend.tensorflow_backend as backend
 
+from ..layers.misc import Shape, ConcatenateBoxes, Cast
 from ..layers.roi import RoiAlign
 from ..layers.upsample import Upsample
-from ..layers.misc import Shape, ConcatenateBoxes, Cast
 
 
 def default_mask_model(
@@ -97,18 +83,65 @@ def default_roi_submodels(num_classes, mask_dtype=K.floatx(), retinanet_dtype=K.
     ]
 
 
-def retinanet_mask(
+def retinanet(input_shape, backbone, modifier_resnet):
+
+    inputs = layers.Input(shape=(None, None, 3), name='image')
+
+    # create the resnet backbone
+    if backbone == 'resnet50':
+        resnet = keras_resnet.models.ResNet50(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet101':
+        resnet = keras_resnet.models.ResNet101(inputs, include_top=False, freeze_bn=True)
+    elif backbone == 'resnet152':
+        resnet = keras_resnet.models.ResNet152(inputs, include_top=False, freeze_bn=True)
+    else:
+        raise Exception("Invalid Backbone!")
+    # invoke modifier if given
+    if modifier_resnet:
+        resnet = modifier_resnet(resnet)
+
+    x = resnet(inputs)
+
+    # backbone_retinanet(
+    #     num_classes,
+    #     nms=True,
+    #     class_specific_filter=class_specific_filter,
+    #     modifier=modifier,
+    #     anchor_params=anchor_params
+    # )
+    # def retinanet(
+    #         inputs,
+    #         backbone_layers,
+    #         submodels,
+    #         num_anchors=None,
+    #         create_pyramid_features=fpn.create_pyramid_features,
+    #         name='retinanet'
+    # ):
+    if submodels is None:
+        submodels = default_submodels(num_classes, num_anchors)
+
+    retinanet_model = tf_retinanet.models.retinanet.retinanet(
+        inputs=inputs,
+        backbone_layers=x[1:],
+        num_classes=num_classes,
+        num_anchors=anchor_params.num_anchors(),
+    )
+
+    # create the full model
+    model = retinanet.retinanet_mask(inputs=inputs, num_classes=num_classes, backbone_layers=resnet.outputs[1:], mask_dtype=mask_dtype, **kwargs)
+
+
+
+def create_maskrcnn(
     inputs,
     num_classes,
-    retinanet_model=None,
+    retinanet_model,
     anchor_params=None,
     nms=True,
     class_specific_filter=True,
-    name='retinanet-mask',
+    name='retinanet_backboned_maskrcnn',
     roi_submodels=None,
-    mask_dtype=K.floatx(),
     modifier=None,
-    **kwargs
 ):
     """ Construct a RetinaNet mask model on top of a retinanet bbox model.
 
@@ -139,22 +172,9 @@ def retinanet_mask(
     if anchor_params is None:
         anchor_params = tf_retinanet.utils.anchors.AnchorParameters.default
 
-    if roi_submodels is None:
-        retinanet_dtype = K.floatx()
-        K.set_floatx(mask_dtype)
-        roi_submodels = default_roi_submodels(num_classes, mask_dtype, retinanet_dtype)
-        K.set_floatx(retinanet_dtype)
-
     image = inputs
     image_shape = Shape()(image)
 
-    if retinanet_model is None:
-        retinanet_model = tf_retinanet.models.retinanet.retinanet(
-            inputs=image,
-            num_classes=num_classes,
-            num_anchors=anchor_params.num_anchors(),
-            **kwargs
-        )
 
     if modifier:
         retinanet_model = modifier(retinanet_model)
@@ -165,8 +185,10 @@ def retinanet_mask(
     other          = retinanet_model.outputs[2:]
     features       = [retinanet_model.get_layer(name).output for name in ['P3', 'P4', 'P5', 'P6', 'P7']]
 
+
+
     # build boxes
-    anchors = tf_retinanet.models.retinanet.__build_anchors(anchor_params, features)
+    anchors = tf_retinanet.models.retinanet.build_anchors(anchor_params, image, features)
     boxes = tf_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
     boxes = tf_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
 
@@ -195,3 +217,4 @@ def retinanet_mask(
     outputs = [regression, classification] + other + trainable_outputs + detections + maskrcnn_outputs
 
     return tf.keras.models.Model(inputs=inputs, outputs=outputs, name=name)
+

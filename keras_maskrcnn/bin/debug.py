@@ -22,11 +22,11 @@ import sys
 import cv2
 import numpy as np
 
-from keras_retinanet.utils.transform import random_transform_generator
-from keras_retinanet.utils.visualization import draw_annotations, draw_boxes, draw_caption
-from keras_retinanet.utils.colors import label_color
-from keras_retinanet.utils.config import read_config_file, parse_anchor_parameters
-from keras_retinanet.utils.anchors import anchors_for_shape, compute_gt_annotations
+from tf_retinanet.utils.transform import random_transform_generator
+from tf_retinanet.utils.visualization import draw_annotations, draw_boxes, draw_caption
+from tf_retinanet.utils.colors import label_color
+from tf_retinanet.utils.config import read_config_file, parse_anchor_parameters
+from tf_retinanet.utils.anchors import anchors_for_shape, compute_gt_annotations
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
@@ -34,7 +34,7 @@ if __name__ == "__main__" and __package__ is None:
     import keras_maskrcnn.bin
     __package__ = "keras_maskrcnn.bin"
 
-# Change these to absolute imports if you copy this script outside the keras_retinanet package.
+# Change these to absolute imports if you copy this script outside the tf_retinanet package.
 from ..utils.visualization import draw_mask
 
 
