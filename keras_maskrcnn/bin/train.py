@@ -22,13 +22,13 @@ import sys
 
 import keras
 
-import tf_retinanet.losses
-from tf_retinanet.callbacks import RedirectModel
-from tf_retinanet.utils.config import read_config_file, parse_anchor_parameters
-from tf_retinanet.utils.gpu import setup_gpu
-from tf_retinanet.utils.version import check_tf_version
-from tf_retinanet.utils.model import freeze as freeze_model
-from tf_retinanet.utils.transform import random_transform_generator
+import keras_retinanet.losses
+from keras_retinanet.callbacks import RedirectModel
+from keras_retinanet.utils.config import read_config_file, parse_anchor_parameters
+from keras_retinanet.utils.gpu import setup_gpu
+from keras_retinanet.utils.version import check_tf_version
+from keras_retinanet.utils.model import freeze as freeze_model
+from keras_retinanet.utils.transform import random_transform_generator
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
@@ -36,7 +36,7 @@ if __name__ == "__main__" and __package__ is None:
     import keras_maskrcnn.bin
     __package__ = "keras_maskrcnn.bin"
 
-# Change these to absolute imports if you copy this script outside the tf_retinanet package.
+# Change these to absolute imports if you copy this script outside the keras_retinanet package.
 from .. import losses
 from .. import models
 from ..callbacks.eval import Evaluate
@@ -65,8 +65,8 @@ def create_models(backbone_retinanet, num_classes, weights, freeze_backbone=Fals
     # compile model
     training_model.compile(
         loss={
-            'regression'    : tf_retinanet.losses.smooth_l1(),
-            'classification': tf_retinanet.losses.focal(),
+            'regression'    : keras_retinanet.losses.smooth_l1(),
+            'classification': keras_retinanet.losses.focal(),
             'masks'         : losses.mask(),
         },
         optimizer=keras.optimizers.adam(lr=1e-5, clipnorm=0.001)

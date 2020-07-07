@@ -4,3 +4,6 @@ keras_maskrcnn.egg-info/
 *.pyc
 /.pytest_cache
 /.cache
+/keras_maskrcnn/bin/logs
+/logs
+/snapshot

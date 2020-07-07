@@ -21,9 +21,9 @@ import tensorflow.keras.backend as K
 import keras
 
 # import keras.models
-import tf_retinanet.layers
-import tf_retinanet.models.retinanet
-import tf_retinanet.backend.tensorflow_backend as backend
+import keras_retinanet.layers
+import keras_retinanet.models.retinanet
+import keras_retinanet.backend.tensorflow_backend as backend
 
 from ..layers.roi import RoiAlign
 from ..layers.upsample import Upsample
@@ -117,7 +117,7 @@ def retinanet_mask(
     # Arguments
         inputs                : List of tf.keras.layers.Input. The first input is the image, the second input the blob of masks.
         num_classes           : Number of classes to classify.
-        retinanet_model       : tf_retinanet.models.retinanet model, returning regression and classification values.
+        retinanet_model       : keras_retinanet.models.retinanet model, returning regression and classification values.
         anchor_params         : Struct containing anchor parameters. If None, default values are used.
         nms                   : Use NMS.
         class_specific_filter : Use class specific filtering.
@@ -137,7 +137,7 @@ def retinanet_mask(
         ```
     """
     if anchor_params is None:
-        anchor_params = tf_retinanet.utils.anchors.AnchorParameters.default
+        anchor_params = keras_retinanet.utils.anchors.AnchorParameters.default
 
     if roi_submodels is None:
         retinanet_dtype = K.floatx()
@@ -149,7 +149,7 @@ def retinanet_mask(
     image_shape = Shape()(image)
 
     if retinanet_model is None:
-        retinanet_model = tf_retinanet.models.retinanet.retinanet(
+        retinanet_model = keras_retinanet.models.retinanet.retinanet(
             inputs=image,
             num_classes=num_classes,
             num_anchors=anchor_params.num_anchors(),
@@ -166,12 +166,12 @@ def retinanet_mask(
     features       = [retinanet_model.get_layer(name).output for name in ['P3', 'P4', 'P5', 'P6', 'P7']]
 
     # build boxes
-    anchors = tf_retinanet.models.retinanet.__build_anchors(anchor_params, features)
-    boxes = tf_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
-    boxes = tf_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
+    anchors = keras_retinanet.models.retinanet.__build_anchors(anchor_params, features)
+    boxes = keras_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
+    boxes = keras_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
 
     # filter detections (apply NMS / score threshold / select top-k)
-    detections = tf_retinanet.layers.FilterDetections(
+    detections = keras_retinanet.layers.FilterDetections(
         nms                   = nms,
         class_specific_filter = class_specific_filter,
         max_detections        = 100,
@@ -192,6 +192,6 @@ def retinanet_mask(
     trainable_outputs = [ConcatenateBoxes(name=name)([boxes, output]) for (name, _), output in zip(roi_submodels, maskrcnn_outputs)]
 
     # reconstruct the new output
-    outputs = [regression, classification] + other + trainable_outputs + detections + maskrcnn_outputs
+    outputs = [regression, classification] + other + trainable_outputs  # + detections + maskrcnn_outputs
 
     return tf.keras.models.Model(inputs=inputs, outputs=outputs, name=name)

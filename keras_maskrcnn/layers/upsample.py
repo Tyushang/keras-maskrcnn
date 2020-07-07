@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 from tensorflow.keras import layers
-import tf_retinanet.backend
+import keras_retinanet.backend
 
 import numpy as np
 
@@ -27,7 +27,7 @@ class Upsample(layers.Layer):
         super(Upsample, self).__init__(*args, **kwargs)
 
     def call(self, inputs, **kwargs):
-        return tf_retinanet.backend.resize_images(inputs, (self.target_size[0], self.target_size[1]), method='nearest')
+        return keras_retinanet.backend.resize_images(inputs, (self.target_size[0], self.target_size[1]), method='nearest')
 
     def compute_output_shape(self, input_shape):
         return (input_shape[0],) + tuple(self.target_size) + (input_shape[-1],)

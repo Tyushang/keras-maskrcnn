@@ -20,7 +20,7 @@ import os
 from pycocotools.coco import COCO
 
 from .generator import Generator
-from tf_retinanet.utils.image import read_image_bgr
+from keras_retinanet.utils.image import read_image_bgr
 
 
 class CocoGenerator(Generator):

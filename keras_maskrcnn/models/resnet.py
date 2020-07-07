@@ -20,11 +20,11 @@ import tensorflow.keras.backend as K
 from tensorflow.keras import layers
 import keras_resnet
 import keras_resnet.models
-import tf_retinanet.models.resnet
+import keras_retinanet.models.resnet
 from ..models import retinanet, Backbone
 
 
-class ResNetBackbone(Backbone, tf_retinanet.models.resnet.ResNetBackbone):
+class ResNetBackbone(Backbone, keras_retinanet.models.resnet.ResNetBackbone):
     def maskrcnn(self, *args, **kwargs):
         """ Returns a maskrcnn model using the correct backbone.
         """

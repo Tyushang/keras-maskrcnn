@@ -1,6 +1,6 @@
 import tensorflow.keras.backend as K
 from tensorflow.keras import layers
-import tf_retinanet.backend
+import keras_retinanet.backend
 
 from .. import backend
 
@@ -50,10 +50,10 @@ class RoiAlign(layers.Layer):
             ordered_indices = []
             for i in range(len(fpn)):
                 # select the boxes and classification from this pyramid level
-                indices = tf_retinanet.backend.where(K.equal(target_levels, i))
+                indices = keras_retinanet.backend.where(K.equal(target_levels, i))
                 ordered_indices.append(indices)
 
-                level_boxes = tf_retinanet.backend.gather_nd(boxes, indices)
+                level_boxes = keras_retinanet.backend.gather_nd(boxes, indices)
                 fpn_shape   = K.cast(K.shape(fpn[i]), dtype=K.floatx())
 
                 # convert to expected format for crop_and_resize
@@ -81,11 +81,11 @@ class RoiAlign(layers.Layer):
 
             # reorder rois back to original order
             indices = K.concatenate(ordered_indices, axis=0)
-            rois    = tf_retinanet.backend.scatter_nd(indices, rois, K.cast(K.shape(rois), 'int64'))
+            rois    = keras_retinanet.backend.scatter_nd(indices, rois, K.cast(K.shape(rois), 'int64'))
 
             return rois
 
-        roi_batch = tf_retinanet.backend.map_fn(
+        roi_batch = keras_retinanet.backend.map_fn(
             _roi_align,
             elems=[boxes, scores, fpn],
             dtype=K.floatx(),

@@ -21,21 +21,21 @@ import warnings
 from tensorflow.keras.utils import Sequence
 import tensorflow.keras.backend as K
 
-from tf_retinanet.utils.anchors import (
+from keras_retinanet.utils.anchors import (
     anchor_targets_bbox,
     bbox_transform,
     anchors_for_shape,
     guess_shapes
 )
-from tf_retinanet.utils.config import parse_anchor_parameters
-from tf_retinanet.utils.image import (
+from keras_retinanet.utils.config import parse_anchor_parameters
+from keras_retinanet.utils.image import (
     TransformParameters,
     adjust_transform_for_image,
     apply_transform,
     preprocess_image,
     resize_image,
 )
-from tf_retinanet.utils.transform import transform_aabb
+from keras_retinanet.utils.transform import transform_aabb
 
 
 class Generator(Sequence):

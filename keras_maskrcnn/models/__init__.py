@@ -1,7 +1,7 @@
-import tf_retinanet.models
+import keras_retinanet.models
 
 
-class Backbone(tf_retinanet.models.Backbone):
+class Backbone(keras_retinanet.models.Backbone):
     """ This class stores additional information on backbones.
     """
     def __init__(self, backbone_name):

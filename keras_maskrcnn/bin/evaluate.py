@@ -20,9 +20,9 @@ import argparse
 import os
 import sys
 
-from tf_retinanet.utils.config import read_config_file
-from tf_retinanet.utils.gpu import setup_gpu
-from tf_retinanet.utils.version import check_tf_version
+from keras_retinanet.utils.config import read_config_file
+from keras_retinanet.utils.gpu import setup_gpu
+from keras_retinanet.utils.version import check_tf_version
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:

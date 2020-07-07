@@ -1,5 +1,8 @@
+
+import tensorflow as tf
+
 import tensorflow.keras.backend as K
-import tf_retinanet.backend
+import keras_retinanet.backend
 from . import backend
 
 
@@ -45,7 +48,7 @@ def mask(iou_threshold=0.5, mask_size=(28, 28), parallel_iterations=32):
                 mask_size     = mask_size,
             )
 
-        mask_batch_loss = tf_retinanet.backend.map_fn(
+        mask_batch_loss = keras_retinanet.backend.map_fn(
             _mask,
             elems=[boxes, masks, annotations, masks_target],
             dtype=K.floatx(),
@@ -73,10 +76,10 @@ def compute_mask_loss(
     max_iou              = K.max(iou, axis=1)
 
     # filter those with IoU > 0.5
-    indices              = tf_retinanet.backend.where(K.greater_equal(max_iou, iou_threshold))
-    boxes                = tf_retinanet.backend.gather_nd(boxes, indices)
-    masks                = tf_retinanet.backend.gather_nd(masks, indices)
-    argmax_overlaps_inds = K.cast(tf_retinanet.backend.gather_nd(argmax_overlaps_inds, indices), 'int32')
+    indices              = keras_retinanet.backend.where(K.greater_equal(max_iou, iou_threshold))
+    boxes                = keras_retinanet.backend.gather_nd(boxes, indices)
+    masks                = keras_retinanet.backend.gather_nd(masks, indices)
+    argmax_overlaps_inds = K.cast(keras_retinanet.backend.gather_nd(argmax_overlaps_inds, indices), 'int32')
     labels               = K.cast(K.gather(annotations[:, 4], argmax_overlaps_inds), 'int32')
 
     # make normalized boxes
@@ -104,10 +107,10 @@ def compute_mask_loss(
     # gather the predicted masks using the annotation label
     masks = backend.transpose(masks, (0, 3, 1, 2))
     label_indices = K.stack([
-        K.arange(K.shape(labels)[0]),
+        tf.range(K.shape(labels)[0]),
         labels
     ], axis=1)
-    masks = tf_retinanet.backend.gather_nd(masks, label_indices)
+    masks = keras_retinanet.backend.gather_nd(masks, label_indices)
 
     # compute mask loss
     mask_loss  = K.binary_crossentropy(masks_target, masks)

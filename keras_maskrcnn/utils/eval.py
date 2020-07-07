@@ -16,7 +16,7 @@ limitations under the License.
 
 from __future__ import print_function
 
-from tf_retinanet.utils.visualization import draw_detections
+from keras_retinanet.utils.visualization import draw_detections
 
 from .overlap import compute_overlap
 from .visualization import draw_masks

@@ -1,0 +1,59 @@
+
+
+
+CSVGenerator output:
+
+batch = train_generator[0]
+
+batch: list:
+batch[0] is image array or X, has shape [batch_size, max_width, max_height, n_channel], dtype = 'float32'
+batch[1] is annotations or Y, list of length 3, assume anno = batch[1]
+    anno[0] is regression labels, has shape [batch_size, n_anchor, 4 + 1], dtype = 'float32'
+    anno[1] is classification labels, has shape [batch_size, n_anchor, n_class + 1], dtype = 'float32'
+    anno[2] is mask labels, has shape [batch size, max_annotations,
+        bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_size], dtype = 'float32';
+
+
+MaskRCNN Output: list(len=7) >> [
+    'regression'    : ndarray(shape=[B, N, 4]),
+    'classification': ndarray(shape=[B, N, n_class]),
+    # 'others'      : [],
+    'boxes_masks'   : ndarray(shape=[B, k, 235204]),
+    'boxes'         : ndarray(shape=[B, k, 4]),
+    'scores'        : ndarray(shape=[B, k]),
+    'labels'        : ndarray(shape=[B, k]),
+    'masks'         : ndarray(shape=[B, k, 28, 28, n_class]),
+    # 'others'      : [],
+]
+where: B is batch size, N is total anchors, k is top-k anchors
+
+input of transform{
+    'image' : ndarray(shape=[width, height, n_channel], dtype='uint8'),
+    'masks' : list   (len=n_box) >> [
+        ndarray(shape=[width, height, 1], dtype='uint8'),
+        ...
+    ],
+    'labels': ndarray(shape=[n_box, ], dtype='float64'),
+    'bboxes': ndarray(shape=[n_box, 4], dtype='float64'),
+}
+output of transform{
+    'image' : ndarray(shape=[width, height, n_channel], dtype='uint8'),
+    'masks' : list   (len=n_box) >> [
+        ndarray(shape=[width, height, 1], dtype='uint8'),
+        ...
+    ],
+    'labels': list   (len=n_box) >> [
+        scalar(dtype=float64),
+        ...
+    ],
+    'bboxes': list   (len=n_box) >> [
+        tuple(len=4, dtype=float64),
+        ...
+    ],
+}
+
+
+Problems:
+1: TypeError: type object got multiple values for keyword argument 'training'
+passing 'training' to Layer.__call__, do not passing it in SubLayer.call.
+

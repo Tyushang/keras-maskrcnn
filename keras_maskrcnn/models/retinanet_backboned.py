@@ -8,8 +8,8 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras import layers
 
-import tf_retinanet.layers
-import tf_retinanet.models.retinanet
+import keras_retinanet.layers
+import keras_retinanet.models.retinanet
 
 from ..layers.misc import Shape, ConcatenateBoxes, Cast
 from ..layers.roi import RoiAlign
@@ -120,7 +120,7 @@ def retinanet(input_shape, backbone, modifier_resnet):
     if submodels is None:
         submodels = default_submodels(num_classes, num_anchors)
 
-    retinanet_model = tf_retinanet.models.retinanet.retinanet(
+    retinanet_model = keras_retinanet.models.retinanet.retinanet(
         inputs=inputs,
         backbone_layers=x[1:],
         num_classes=num_classes,
@@ -150,7 +150,7 @@ def create_maskrcnn(
     # Arguments
         inputs                : List of tf.keras.layers.Input. The first input is the image, the second input the blob of masks.
         num_classes           : Number of classes to classify.
-        retinanet_model       : tf_retinanet.models.retinanet model, returning regression and classification values.
+        retinanet_model       : keras_retinanet.models.retinanet model, returning regression and classification values.
         anchor_params         : Struct containing anchor parameters. If None, default values are used.
         nms                   : Use NMS.
         class_specific_filter : Use class specific filtering.
@@ -170,7 +170,7 @@ def create_maskrcnn(
         ```
     """
     if anchor_params is None:
-        anchor_params = tf_retinanet.utils.anchors.AnchorParameters.default
+        anchor_params = keras_retinanet.utils.anchors.AnchorParameters.default
 
     image = inputs
     image_shape = Shape()(image)
@@ -188,12 +188,12 @@ def create_maskrcnn(
 
 
     # build boxes
-    anchors = tf_retinanet.models.retinanet.build_anchors(anchor_params, image, features)
-    boxes = tf_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
-    boxes = tf_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
+    anchors = keras_retinanet.models.retinanet.build_anchors(anchor_params, image, features)
+    boxes = keras_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
+    boxes = keras_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
 
     # filter detections (apply NMS / score threshold / select top-k)
-    detections = tf_retinanet.layers.FilterDetections(
+    detections = keras_retinanet.layers.FilterDetections(
         nms                   = nms,
         class_specific_filter = class_specific_filter,
         max_detections        = 100,
