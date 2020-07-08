@@ -52,12 +52,9 @@ CLI_ARGS = [
 # _________________________________________________________________________________________________
 # Program:
 import argparse
-import sys
-import cv2
 
 # noinspection PyUnresolvedReferences
 import tensorflow as tf
-from tensorflow.keras import backend as K
 
 import keras_retinanet.losses
 from keras_retinanet.callbacks import RedirectModel
@@ -69,11 +66,7 @@ from keras_maskrcnn import losses
 from keras_maskrcnn import models
 from albumentations import *
 #
-from utils.ins_utils import *
-# from ins_gen import CSVGenerator
-# from training.csv_generator import CSVGenerator
-# import tensorflow.keras as keras
-# import tensorflow.keras.preprocessing.image
+from keras_maskrcnn.utils.ins_utils import *
 
 # Set your own project id here
 PROJECT_ID = 'banded-splicer-259715'

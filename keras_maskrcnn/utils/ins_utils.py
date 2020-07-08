@@ -34,7 +34,7 @@ def get_image_size(path):
 def read_single_image(path):
     # img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
     # return img
-    return tf.image.decode_jpeg(tf.io.read_file(path)).numpy()
+    return tf.image.decode_jpeg(tf.io.read_file(path), channels=3).numpy()
 
 
 def rle_decode(mask_rle, shape=(1024, 1024)):
