@@ -134,7 +134,8 @@ class CSVGenerator(Generator):
 
         # Take mask_dir from anno file if not explicitly specified.
         if self.mask_dir is None:
-            self.mask_dir = os.path.dirname(segmentations_csv)
+            tmp = os.path.dirname(os.path.dirname(segmentations_csv))
+            self.mask_dir = os.path.join(tmp, 'all-masks')
 
         # class_names.columns: ['No', 'MID', 'class_name'], where 'MID' is 'label_name'
         self.class_names: pd.DataFrame = pd.read_csv(class_names_csv, names=['MID', 'class_name'])\

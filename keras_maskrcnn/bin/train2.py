@@ -10,7 +10,7 @@ import os
 RUN_ON = 'kaggle' if os.path.exists('/kaggle') else 'local'
 
 if RUN_ON == 'kaggle':
-    DATASET_DIR = 'gs://tyu-ins'
+    DATASET_DIR = 'gs://tyu-ins-sample'
     PRETRAINED_WEIGHTS = '../input/download-models/resnet50_oid_v1.0.1.h5'
     ON_SAMPLES = False
 else:
@@ -33,7 +33,7 @@ CLI_ARGS = [
     # '--imagenet-weights',
     # '--freeze-backbone',
     '--weights', PRETRAINED_WEIGHTS,
-    '--epochs', '1000',
+    '--epochs', '2',
     '--gpu', '2',
     '--steps', '5',
     '--snapshot-path', SNAPSHOT_DIR,
@@ -43,7 +43,7 @@ CLI_ARGS = [
     '--batch-size', f'{BATCH_SIZE}',
     'csv',
     DATASET_DIR,  # dataset_location or image_dir
-    ANNO_PATH + f'train/challenge-2019-train-masks/challenge-2019-train-segmentation-masks{"-samples" if ON_SAMPLES else ""}.csv',
+    ANNO_PATH + f'train/challenge-2019-train-masks/challenge-2019-train-segmentation-masks.csv',
     ANNO_PATH + 'metadata/challenge-2019-classes-description-segmentable.csv',
     '--val-annotations',
     ANNO_PATH + 'validation/challenge-2019-validation-masks/challenge-2019-validation-segmentation-masks.csv',
@@ -112,59 +112,59 @@ def create_models(backbone_retinanet, num_classes, weights, args, freeze_backbon
 
 def create_callbacks(model, training_model, prediction_model, validation_generator, args):
     callbacks = []
+    #
+    # # save the last prediction model
+    # if args.snapshots:
+    #     # ensure directory created first; otherwise h5py will error after epoch.
+    #     os.makedirs(args.snapshot_path, exist_ok=True)
+    #     checkpoint = tf.keras.callbacks.ModelCheckpoint(
+    #         os.path.join(
+    #             args.snapshot_path,
+    #             f'{args.backbone}_fold_{args.fold}_last.h5'
+    #         ),
+    #         verbose=1,
+    #     )
+    #     checkpoint = RedirectModel(checkpoint, model)
+    #     callbacks.append(checkpoint)
+    #
+    # tensorboard_callback = None
+    # if args.tensorboard_dir:
+    #     tensorboard_callback = tf.keras.callbacks.TensorBoard(
+    #         log_dir=args.tensorboard_dir,
+    #         histogram_freq=0,
+    #         batch_size=args.batch_size,
+    #         write_graph=True,
+    #         write_grads=False,
+    #         write_images=False,
+    #         embeddings_freq=0,
+    #         embeddings_layer_names=None,
+    #         embeddings_metadata=None
+    #     )
+    #     callbacks.append(tensorboard_callback)
+    #
+    # # Calculate mAP
+    # if args.evaluation and validation_generator:
+    #     evaluation = Evaluate(validation_generator,
+    #                           tensorboard=tensorboard_callback,
+    #                           weighted_average=args.weighted_average,
+    #                           save_map_path=args.snapshot_path + '/mask_rcnn_fold_{}.txt'.format(args.fold))
+    #     evaluation = RedirectModel(evaluation, prediction_model)
+    #     callbacks.append(evaluation)
 
-    # save the last prediction model
-    if args.snapshots:
-        # ensure directory created first; otherwise h5py will error after epoch.
-        os.makedirs(args.snapshot_path, exist_ok=True)
-        checkpoint = tf.keras.callbacks.ModelCheckpoint(
-            os.path.join(
-                args.snapshot_path,
-                '{backbone}_fold_{fold}_last.h5'.format(backbone=args.backbone, fold=args.fold)
-            ),
-            verbose=1,
-        )
-        checkpoint = RedirectModel(checkpoint, model)
-        callbacks.append(checkpoint)
-
-    tensorboard_callback = None
-    if args.tensorboard_dir:
-        tensorboard_callback = tf.keras.callbacks.TensorBoard(
-            log_dir=args.tensorboard_dir,
-            histogram_freq=0,
-            batch_size=args.batch_size,
-            write_graph=True,
-            write_grads=False,
-            write_images=False,
-            embeddings_freq=0,
-            embeddings_layer_names=None,
-            embeddings_metadata=None
-        )
-        callbacks.append(tensorboard_callback)
-
-    # Calculate mAP
-    if args.evaluation and validation_generator:
-        evaluation = Evaluate(validation_generator,
-                              tensorboard=tensorboard_callback,
-                              weighted_average=args.weighted_average,
-                              save_map_path=args.snapshot_path + '/mask_rcnn_fold_{}.txt'.format(args.fold))
-        evaluation = RedirectModel(evaluation, prediction_model)
-        callbacks.append(evaluation)
-
-    # save prediction model with mAP
-    if args.snapshots:
-        checkpoint = tf.keras.callbacks.ModelCheckpoint(
-            os.path.join(
-                args.snapshot_path,
-                '{backbone}_fold_{fold}_{{mAP:.4f}}_ep_{{epoch:02d}}.h5'.format(backbone=args.backbone, fold=args.fold)
-            ),
-            verbose=1,
-            save_best_only=False,
-            monitor="mAP",
-            mode='max'
-        )
-        checkpoint = RedirectModel(checkpoint, prediction_model)
-        callbacks.append(checkpoint)
+    # # save prediction model with mAP
+    # if args.snapshots:
+    #     checkpoint = tf.keras.callbacks.ModelCheckpoint(
+    #         os.path.join(
+    #             args.snapshot_path,
+    #             f'{config.backbone}_fold_{config.fold}_mAP.h5'
+    #         ),
+    #         verbose=1,
+    #         save_best_only=False,
+    #         monitor="mAP",
+    #         mode='max'
+    #     )
+    #     checkpoint = RedirectModel(checkpoint, prediction_model)
+    #     callbacks.append(checkpoint)
 
     callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(
         monitor  = 'loss',
@@ -223,7 +223,7 @@ def create_generators(args):
     train_generator = CSVGenerator(
         args.annotations,
         args.class_names,
-        image_dir=os.path.join(args.dataset_dir, 'train-samples' if ON_SAMPLES else 'train'),
+        image_dir=os.path.join(args.dataset_dir, 'train'),
         transform_generator=transform_generator,
         batch_size=args.batch_size,
         config=args.config,
@@ -237,7 +237,7 @@ def create_generators(args):
         validation_generator = CSVGenerator(
             args.val_annotations,
             args.class_names,
-            image_dir=os.path.join(args.dataset_dir, 'validation-samples' if ON_SAMPLES else 'validation'),
+            image_dir=os.path.join(args.dataset_dir, 'validation'),
             batch_size=args.batch_size,
             config=args.config,
             image_min_side=800,
@@ -379,8 +379,8 @@ if __name__ == '__main__':
         initial_epoch = int((config.snapshot.split('_')[-1]).split('.')[0])
 
     # start training
-    training_model.fit_generator(
-        generator=train_generator,
+    training_model.fit(
+        x=train_generator,
         steps_per_epoch=config.steps,
         epochs=config.epochs,
         verbose=1,
