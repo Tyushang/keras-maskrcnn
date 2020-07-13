@@ -107,9 +107,12 @@ class Generator(Sequence):
                 (annotations['bboxes'][:, 2] <= annotations['bboxes'][:, 0]) |
                 (annotations['bboxes'][:, 3] <= annotations['bboxes'][:, 1]) |
                 (annotations['bboxes'][:, 0] < 0) |
-                (annotations['bboxes'][:, 1] < 0) |
-                (annotations['bboxes'][:, 2] > image.shape[1]) |
-                (annotations['bboxes'][:, 3] > image.shape[0])
+                (annotations['bboxes'][:, 1] < 0)
+                # image.shape may differ with mask.shape(though they have same aspect ratio).
+                # so the code below may generate false warnings.
+                # in fact, there no need to check if x2,y2 exceed border coz x2,y2 limited in [0, 1]
+                # (annotations['bboxes'][:, 2] > image.shape[1]) |
+                # (annotations['bboxes'][:, 3] > image.shape[0])
             )[0]
 
             # delete invalid indices
@@ -163,26 +166,31 @@ class Generator(Sequence):
     def preprocess_group_entry(self, image, annotations):
         """ Preprocess image and its annotations.
         """
-        # preprocess the image
-        image = self.preprocess_image(image)
+        # # preprocess the image
+        # image = self.preprocess_image(image)
+        #
+        # # randomly transform image and annotations
+        # image, annotations = self.random_transform_group_entry(image, annotations)
+        #
+        # # resize image
+        # image, image_scale = self.resize_image(image)
+        # h, w, *_ = image.shape
+        #
+        # # resize masks
+        # for i in range(len(annotations['masks'])):
+        #     # annotations['masks'][i], _ = self.resize_image(annotations['masks'][i])
+        #     import cv2
+        #     annotations['masks'][i] = cv2.resize(annotations['masks'][i], dsize=(w, h))
+        #
+        # # normalized bboxes to absolute bboxes
+        # annotations['bboxes'] = annotations['bboxes'] * [w, h, w, h]
+        #
+        # # convert to the wanted keras floatx
+        # image = K.cast_to_floatx(image)
+        #
+        # return image, annotations
+        raise NotImplementedError('preprocess_group_entry method not implemented')
 
-        # randomly transform image and annotations
-        image, annotations = self.random_transform_group_entry(image, annotations)
-
-        # resize image
-        image, image_scale = self.resize_image(image)
-
-        # resize masks
-        for i in range(len(annotations['masks'])):
-            annotations['masks'][i], _ = self.resize_image(annotations['masks'][i])
-
-        # apply resizing to annotations too
-        annotations['bboxes'] *= image_scale
-
-        # convert to the wanted keras floatx
-        image = K.cast_to_floatx(image)
-
-        return image, annotations
 
     def preprocess_group(self, image_group, annotations_group):
         for index, (image, annotations) in enumerate(zip(image_group, annotations_group)):

@@ -11,7 +11,7 @@ batch[0] is image array or X, has shape [batch_size, max_width, max_height, n_ch
 batch[1] is annotations or Y, list of length 3, assume anno = batch[1]
     anno[0] is regression labels, has shape [batch_size, n_anchor, 4 + 1], dtype = 'float32'
     anno[1] is classification labels, has shape [batch_size, n_anchor, n_class + 1], dtype = 'float32'
-    anno[2] is mask labels, has shape [batch size, max_annotations,
+    anno[2] is mask labels, has shape [batch_size, max_annotations,
         bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_size], dtype = 'float32';
 
 

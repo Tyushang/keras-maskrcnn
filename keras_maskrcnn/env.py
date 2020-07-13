@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# __author__=u"Frank Jing"
-
 
 # Dataset Dir Tree:
 # ROOT:
@@ -12,12 +10,14 @@
 # |   |   |-- challenge-2019-label300-segmentable-hierarchy.json
 # |   |-- train
 # |   |   |-- challenge-2019-train-masks
+# |   |   |   |-- challenge-2019-train-segmentation-masks.csv
 # |   |   |   |-- challenge-2019-train-masks-[0~f].zip
 # |   |   |-- all-masks  # n_mask: 2125530
 # |   |   |-- challenge-2019-train-segmentation-bbox.csv
 # |   |   |-- challenge-2019-train-segmentation-labels.csv
 # |   |-- validation
 # |       |-- challenge-2019-validation-masks
+# |       |   |-- challenge-2019-validation-segmentation-masks.csv
 # |       |   |-- challenge-2019-validation-masks-[0~f].zip
 # |       |-- all-masks  # n_mask: 23366
 # |       |-- challenge-2019-validation-segmentation-bbox.csv

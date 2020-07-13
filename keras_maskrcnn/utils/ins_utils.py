@@ -61,13 +61,14 @@ def read_oid_segmentation_annotations(image_dir, mask_dir, csv_path, label_names
     seg_df = pd.read_csv(csv_path, usecols=[
         'MaskPath', 'ImageID', 'LabelName', 'BoxXMin', 'BoxXMax', 'BoxYMin', 'BoxYMax'])
     # 'MaskPath' here actually is mask file name(e.g. 88e582a7b14e34a8_m039xj__6133896f.png)
-    seg_df.rename({'MaskPath': 'MaskFilename'})
     for _, row in seg_df.iterrows():
-        mask_filename, image_id, label_name, x1, x2, y1, y2 = row.to_list()
+        # 'MaskPath' here actually is mask file name(e.g. 88e582a7b14e34a8_m039xj__6133896f.png)
+        mask_fname, image_id, label_name, x1, x2, y1, y2 = \
+            row[['MaskPath', 'ImageID', 'LabelName', 'BoxXMin', 'BoxXMax', 'BoxYMin', 'BoxYMax']]
         x1, x2, y1, y2 = check_segmentation_annos(label_name, label_names, row, x1, x2, y1, y2)
 
         img_path  = os.path.join(image_dir, f'{image_id}.jpg')
-        mask_path = os.path.join(mask_dir,  mask_filename)
+        mask_path = os.path.join(mask_dir,  mask_fname)
 
         if img_path not in result:
             result[img_path] = []
@@ -195,47 +196,46 @@ class CSVGenerator(Generator):
                 if mask is None:
                     print('Invalid mask: {}'.format(anno['mask_path']))
                     w, h = get_image_size(path)
-                    # mask = np.zeros((h, w), dtype=np.uint8)
-                    mask = tf.zeros((w, h), dtype='uint8')
+                    mask = np.zeros((h, w), dtype=np.uint8)
             else:
                 mask = rle_decode(anno['mask_path'], (1200, 1200))
 
-            annotations['bboxes'][idx, 0] = float(anno['x1'] * mask.shape[1])  # = float(anno['x1']) ?
-            annotations['bboxes'][idx, 1] = float(anno['y1'] * mask.shape[0])  # = float(anno['y1']) ?
-            annotations['bboxes'][idx, 2] = float(anno['x2'] * mask.shape[1])  # = float(anno['x2']) ?
-            annotations['bboxes'][idx, 3] = float(anno['y2'] * mask.shape[0])  # = float(anno['y2']) ?
+            annotations['bboxes'][idx, 0] = float(anno['x1'])  # * mask.shape[1])  # = float(anno['x1']) ?
+            annotations['bboxes'][idx, 1] = float(anno['y1'])  # * mask.shape[0])  # = float(anno['y1']) ?
+            annotations['bboxes'][idx, 2] = float(anno['x2'])  # * mask.shape[1])  # = float(anno['x2']) ?
+            annotations['bboxes'][idx, 3] = float(anno['y2'])  # * mask.shape[0])  # = float(anno['y2']) ?
             annotations['labels'][idx] = self.mid_to_no[anno['label_name']]
 
-            mask = tf.cast(mask > 0, 'uint8')  # convert from 0-255 to binary mask
-            annotations['masks'].append(tf.expand_dims(mask, axis=-1))
+            mask = (mask > 0).astype(np.uint8)  # convert from 0-255 to binary mask  # convert from 0-255 to binary mask
+            annotations['masks'].append(mask)   # (np.expand_dims(mask, axis=-1))
 
         return annotations
 
     def preprocess_group_entry(self, image, annotations):
         """ Preprocess image and its anno.
         """
-
-        # randomly transform image and anno
-        image, annotations = self.random_transform_group_entry(image, annotations)
-
+        import cv2
+        # resize mask to equal image shape.
+        h, w, *_ = image.shape
+        for i in range(len(annotations['masks'])):
+            annotations['masks'][i] = cv2.resize(annotations['masks'][i], dsize=(w, h))
+        # normalized bboxes to absolute bboxes
+        annotations['bboxes'] = annotations['bboxes'] * [w, h, w, h]
         # preprocess the image
         image = self.preprocess_image(image)
-
-        # resize image
+        # randomly transform image and annotations
+        image, annotations = self.random_transform_group_entry(image, annotations)
+        # resize image and mask
         image, image_scale = self.resize_image(image)
-
-        # resize masks
-        # for i in range(len(annotations['masks'])):
-        #     annotations['masks'][i], _ = self.resize_image(annotations['masks'][i])
-
-        annotations['masks'] = list(map(
-            lambda arr: self.resize_image(arr)[0], annotations['masks']
-        ))
-
-        # apply resizing to anno too
+        for i in range(len(annotations['masks'])):
+            annotations['masks'][i] = cv2.resize(annotations['masks'][i], dsize=(image.shape[1], image.shape[0]))
+        # apply resizing to annotations too
         annotations['bboxes'] *= image_scale
+        # convert to the wanted keras floatx
+        image = K.cast_to_floatx(image)
 
         return image, annotations
+
 
     def random_transform_group_entry(self, image, anno, transform=None):
         """ Randomly transforms image and annotation.
@@ -248,7 +248,7 @@ class CSVGenerator(Generator):
         if self.transform_generator and len(anno['masks']) > 0:
             augmented = self.transform_generator(
                 image=image,
-                masks=np.stack(anno['masks'])[:, :, :, 0],
+                masks=np.stack(anno['masks']),
                 labels=anno['labels'],
                 bboxes=anno['bboxes'],
             )
