@@ -7,7 +7,9 @@ __author__ = 'Frank Jing'
 # Configurations:
 import os
 
-RUN_ON = 'kaggle' if os.path.exists('/kaggle') else 'local'
+RUN_ON = 'local' if os.path.exists('C:/') else \
+         'kaggle' if os.path.exists('/kaggle') else \
+         'gcp'
 
 if RUN_ON == 'kaggle':
     DATASET_DIR = 'gs://tyu-ins-sample'
@@ -39,7 +41,7 @@ CLI_ARGS = [
     '--snapshot-path', SNAPSHOT_DIR,
     '--lr', '1e-5',
     '--backbone', 'resnet50',
-    '--group_method', 'group_method',
+    '--group_method', 'random',
     '--batch-size', f'{BATCH_SIZE}',
     'csv',
     DATASET_DIR,  # dataset_location or image_dir
@@ -316,49 +318,49 @@ if __name__ == '__main__':
     check_tf_version()
     if not os.path.isdir(config.snapshot_path):
         os.mkdir(config.snapshot_path)
-
     # create object that stores backbone information
     backbone = models.backbone(config.backbone)
-
-    # from keras_maskrcnn.models.resnet import resnet_maskrcnn
-    # mrcnn = resnet_maskrcnn(
-    #     300,
-    #     nms=True,
-    #     modifier=None,
-    #     class_specific_filter=config.class_specific_filter,
-    #     anchor_params=None,
-    # )
-
     # create the generators
     train_generator, validation_generator = create_generators(config)
 
-    # create the model
-    if config.snapshot is not None:
-        print('Loading model {}, this may take a second...'.format(config.snapshot))
-        model            = models.load_model(config.snapshot, backbone_name=config.backbone)
-        training_model   = model
-        prediction_model = model
+    def _create_model():
+        # create the model
+        if config.snapshot is not None:
+            print('Loading model {}, this may take a second...'.format(config.snapshot))
+            model = models.load_model(config.snapshot, backbone_name=config.backbone)
+            training_model = model
+            prediction_model = model
+        else:
+            weights = config.weights
+            # default to imagenet if nothing else is specified
+            if weights is None and config.imagenet_weights:
+                weights = backbone.download_imagenet()
+            anchor_params = None
+            print('Creating model, this may take a second...')
+            model, training_model, prediction_model = create_models(
+                backbone_retinanet=backbone.maskrcnn,
+                num_classes=train_generator.num_classes(),
+                weights=weights,
+                args=config,
+                freeze_backbone=config.freeze_backbone,
+                class_specific_filter=config.class_specific_filter,
+                anchor_params=anchor_params
+            )
+        # print model summary
+        model.summary()
+        return model, training_model, prediction_model
+
+    if RUN_ON in ['kaggle', 'gcp']:
+        tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+        tf.config.experimental_connect_to_cluster(tpu)
+        tf.tpu.experimental.initialize_tpu_system(tpu)
+        # instantiate a distribution strategy
+        tpu_strategy = tf.distribute.experimental.TPUStrategy(tpu)
+        # instantiating the model in the strategy scope creates the model on the TPU
+        with tpu_strategy.scope():
+            model, model_train, model_predict = _create_model()
     else:
-        weights = config.weights
-        # default to imagenet if nothing else is specified
-        if weights is None and config.imagenet_weights:
-            weights = backbone.download_imagenet()
-
-        anchor_params = None
-
-        print('Creating model, this may take a second...')
-        model, training_model, prediction_model = create_models(
-            backbone_retinanet=backbone.maskrcnn,
-            num_classes=train_generator.num_classes(),
-            weights=weights,
-            args=config,
-            freeze_backbone=config.freeze_backbone,
-            class_specific_filter=config.class_specific_filter,
-            anchor_params=anchor_params
-        )
-
-    # print model summary
-    model.summary()
+        model, model_train, model_predict = _create_model()
 
     print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
     if config.lr > 0.0:
@@ -368,8 +370,8 @@ if __name__ == '__main__':
     # create the callbacks
     callbacks = create_callbacks(
         model,
-        training_model,
-        prediction_model,
+        model_train,
+        model_predict,
         validation_generator,
         config,
     )
@@ -379,7 +381,7 @@ if __name__ == '__main__':
         initial_epoch = int((config.snapshot.split('_')[-1]).split('.')[0])
 
     # start training
-    training_model.fit(
+    model_train.fit(
         x=train_generator,
         steps_per_epoch=config.steps,
         epochs=config.epochs,

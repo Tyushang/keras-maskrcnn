@@ -192,7 +192,8 @@ class CSVGenerator(Generator):
 
         for idx, anno in enumerate(anno_list):
             if self.is_rle is False:
-                mask = cv2.imread(anno['mask_path'], cv2.IMREAD_GRAYSCALE)
+                mask = tf.image.decode_png(tf.io.read_file(anno['mask_path']),
+                                           channels=1).numpy().squeeze()
                 if mask is None:
                     print('Invalid mask: {}'.format(anno['mask_path']))
                     w, h = get_image_size(path)

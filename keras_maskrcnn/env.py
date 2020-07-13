@@ -6,15 +6,15 @@
 # ROOT:
 # |-- annotation-instance-segmentation
 # |   |-- metadata
-# |   |   |-- challenge-2019-classes-description-segmentable.csv
-# |   |   |-- challenge-2019-label300-segmentable-hierarchy.json
+# |   |   |-- challenge-2019-classes-description-segmentable.csv    # class_csv for short.
+# |   |   |-- challenge-2019-label300-segmentable-hierarchy.json    # hierarchy_json for short
 # |   |-- train
 # |   |   |-- challenge-2019-train-masks
-# |   |   |   |-- challenge-2019-train-segmentation-masks.csv
+# |   |   |   |-- challenge-2019-train-segmentation-masks.csv       # mask_csv for short.
 # |   |   |   |-- challenge-2019-train-masks-[0~f].zip
 # |   |   |-- all-masks  # n_mask: 2125530
-# |   |   |-- challenge-2019-train-segmentation-bbox.csv
-# |   |   |-- challenge-2019-train-segmentation-labels.csv
+# |   |   |-- challenge-2019-train-segmentation-bbox.csv            # bbox_csv for short.
+# |   |   |-- challenge-2019-train-segmentation-labels.csv          # label_csv for short.
 # |   |-- validation
 # |       |-- challenge-2019-validation-masks
 # |       |   |-- challenge-2019-validation-segmentation-masks.csv
