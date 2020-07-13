@@ -18,9 +18,6 @@ limitations under the License.
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-import keras
-
-# import keras.models
 import keras_retinanet.layers
 import keras_retinanet.models.retinanet
 import keras_retinanet.backend.tensorflow_backend as backend
@@ -45,7 +42,7 @@ def default_mask_model(
         'kernel_size'        : 3,
         'strides'            : 1,
         'padding'            : 'same',
-        'kernel_initializer' : keras.initializers.normal(mean=0.0, stddev=0.01, seed=None),
+        'kernel_initializer' : tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01, seed=None),
         'bias_initializer'   : 'zeros',
         'activation'         : 'relu',
     }
