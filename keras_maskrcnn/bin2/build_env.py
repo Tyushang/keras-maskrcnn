@@ -1,30 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+This script sample some examples(image and annotations) from origin dataset for debug use.
+Because origin dataset is too large.
 
-# Dataset Dir Tree:
-# ROOT:
-# |-- annotation-instance-segmentation
-# |   |-- metadata
-# |   |   |-- challenge-2019-classes-description-segmentable.csv    # class_csv for short.
-# |   |   |-- challenge-2019-label300-segmentable-hierarchy.json    # hierarchy_json for short
-# |   |-- train
-# |   |   |-- challenge-2019-train-masks
-# |   |   |   |-- challenge-2019-train-segmentation-masks.csv       # mask_csv for short.
-# |   |   |   |-- challenge-2019-train-masks-[0~f].zip
-# |   |   |-- all-masks  # n_mask: 2125530
-# |   |   |-- challenge-2019-train-segmentation-bbox.csv            # bbox_csv for short.
-# |   |   |-- challenge-2019-train-segmentation-labels.csv          # label_csv for short.
-# |   |-- validation
-# |       |-- challenge-2019-validation-masks
-# |       |   |-- challenge-2019-validation-segmentation-masks.csv
-# |       |   |-- challenge-2019-validation-masks-[0~f].zip
-# |       |-- all-masks  # n_mask: 23366
-# |       |-- challenge-2019-validation-segmentation-bbox.csv
-# |       |-- challenge-2019-validation-segmentation-labels.csv
-# |-- train
-# |-- validation
-# |-- test
+Dataset Dir Tree:
+ROOT:
+|-- annotation-instance-segmentation
+|   |-- metadata
+|   |   |-- challenge-2019-classes-description-segmentable.csv    # class_csv for short.
+|   |   |-- challenge-2019-label300-segmentable-hierarchy.json    # hierarchy_json for short
+|   |-- train
+|   |   |-- challenge-2019-train-masks
+|   |   |   |-- challenge-2019-train-segmentation-masks.csv       # mask_csv for short.
+|   |   |   |-- challenge-2019-train-masks-[0~f].zip
+|   |   |-- all-masks  # n_mask: 2125530
+|   |   |-- challenge-2019-train-segmentation-bbox.csv            # bbox_csv for short.
+|   |   |-- challenge-2019-train-segmentation-labels.csv          # label_csv for short.
+|   |-- validation
+|       |-- challenge-2019-validation-masks
+|       |   |-- challenge-2019-validation-segmentation-masks.csv
+|       |   |-- challenge-2019-validation-masks-[0~f].zip
+|       |-- all-masks  # n_mask: 23366
+|       |-- challenge-2019-validation-segmentation-bbox.csv
+|       |-- challenge-2019-validation-segmentation-labels.csv
+|-- train
+|-- validation
+|-- test
+"""
 
 
 import os

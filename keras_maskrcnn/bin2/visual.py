@@ -8,6 +8,7 @@ import cv2
 from albumentations import *
 
 from utils.ins_utils import CSVGenerator
+from utils.visualization import draw_mask, draw_masks
 
 DATASET_DIR     = 'D:/venv-tensorflow2/open-images-dataset'
 # DATASET_DIR     = 'gs://tyu-ins-sample'
@@ -64,7 +65,12 @@ gen = CSVGenerator(
 
 
 def show(image_batch, anno_batch):
-    for image, bboxes, labels, masks in zip(image_batch, *anno_batch):
-        ...
+    for image, boxes, labels, masks in zip(image_batch, *anno_batch):
+        draw_masks(image, boxes, masks )
+        print(image.shape)
+        print(boxes.shape)
+        print(labels.shape)
+        print(masks.shape)
+        break
 
 

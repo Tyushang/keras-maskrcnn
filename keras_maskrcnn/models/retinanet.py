@@ -101,7 +101,7 @@ def retinanet_mask(
     anchor_params=None,
     nms=True,
     class_specific_filter=True,
-    name='retinanet-mask',
+    name_retinanet_mask='retinanet-mask',
     roi_submodels=None,
     mask_dtype=K.floatx(),
     modifier=None,
@@ -150,6 +150,7 @@ def retinanet_mask(
             inputs=image,
             num_classes=num_classes,
             num_anchors=anchor_params.num_anchors(),
+            name='retinanet',
             **kwargs
         )
 
@@ -191,4 +192,4 @@ def retinanet_mask(
     # reconstruct the new output
     outputs = [regression, classification] + other + trainable_outputs  # + detections + maskrcnn_outputs
 
-    return tf.keras.models.Model(inputs=inputs, outputs=outputs, name=name)
+    return tf.keras.models.Model(inputs=inputs, outputs=outputs, name=name_retinanet_mask)

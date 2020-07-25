@@ -23,27 +23,22 @@ def mask(iou_threshold=0.5, mask_size=(28, 28), parallel_iterations=32):
 
         # split up the different blobs
         annotations  = y_true[:, :, :5]
-        width        = K.cast(y_true[0, 0, 5], dtype='int32')
-        height       = K.cast(y_true[0, 0, 6], dtype='int32')
+        batch_width  = K.cast(y_true[0, 0, 5], dtype='int32')
+        batch_height = K.cast(y_true[0, 0, 6], dtype='int32')
         masks_target = y_true[:, :, 7:]
 
         # reshape the masks back to their original size
-        masks_target = K.reshape(masks_target, (K.shape(masks_target)[0], K.shape(masks_target)[1], height, width))
+        masks_target = K.reshape(masks_target, (K.shape(masks_target)[0], K.shape(masks_target)[1], batch_height, batch_width))
         masks        = K.reshape(masks, (K.shape(masks)[0], K.shape(masks)[1], mask_size[0], mask_size[1], -1))
 
         def _mask(args):
-            boxes = args[0]
-            masks = args[1]
-            annotations = args[2]
-            masks_target = args[3]
-
             return compute_mask_loss(
-                boxes,
-                masks,
-                annotations,
-                masks_target,
-                width,
-                height,
+                boxes         = args[0],
+                masks         = args[1],
+                annotations   = args[2],
+                masks_target  = args[3],
+                width         = batch_width,
+                height        = batch_height,
                 iou_threshold = iou_threshold,
                 mask_size     = mask_size,
             )
@@ -71,16 +66,16 @@ def compute_mask_loss(
     mask_size=(28, 28)
 ):
     # compute overlap of boxes with annotations
-    iou                  = backend.overlap(boxes, annotations)
-    argmax_overlaps_inds = K.argmax(iou, axis=1)
-    max_iou              = K.max(iou, axis=1)
+    iou          = backend.overlap(boxes, annotations)
+    anno_indices = K.argmax(iou, axis=1)
+    max_iou      = K.max(iou, axis=1)
 
     # filter those with IoU > 0.5
-    indices              = keras_retinanet.backend.where(K.greater_equal(max_iou, iou_threshold))
-    boxes                = keras_retinanet.backend.gather_nd(boxes, indices)
-    masks                = keras_retinanet.backend.gather_nd(masks, indices)
-    argmax_overlaps_inds = K.cast(keras_retinanet.backend.gather_nd(argmax_overlaps_inds, indices), 'int32')
-    labels               = K.cast(K.gather(annotations[:, 4], argmax_overlaps_inds), 'int32')
+    positive_indices = keras_retinanet.backend.where(K.greater_equal(max_iou, iou_threshold))
+    boxes            = keras_retinanet.backend.gather_nd(boxes, positive_indices)
+    masks            = keras_retinanet.backend.gather_nd(masks, positive_indices)
+    anno_indices     = K.cast(keras_retinanet.backend.gather_nd(anno_indices, positive_indices), 'int32')
+    labels           = K.cast(K.gather(annotations[:, 4], anno_indices), 'int32')
 
     # make normalized boxes
     x1 = boxes[:, 0]
@@ -99,7 +94,7 @@ def compute_mask_loss(
     masks_target = backend.crop_and_resize(
         masks_target,
         boxes,
-        argmax_overlaps_inds,
+        anno_indices,
         mask_size
     )
     masks_target = masks_target[:, :, :, 0]  # remove fake channel dimension

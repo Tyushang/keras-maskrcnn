@@ -26,7 +26,7 @@ import keras_retinanet.losses
 from keras_retinanet.callbacks import RedirectModel
 from keras_retinanet.utils.config import read_config_file, parse_anchor_parameters
 from keras_retinanet.utils.gpu import setup_gpu
-from keras_retinanet.utils.version import check_tf_version
+from keras_retinanet.utils.tf_version import check_tf_version
 from keras_retinanet.utils.model import freeze as freeze_model
 from keras_retinanet.utils.transform import random_transform_generator
 
@@ -37,9 +37,9 @@ if __name__ == "__main__" and __package__ is None:
     __package__ = "keras_maskrcnn.bin"
 
 # Change these to absolute imports if you copy this script outside the keras_retinanet package.
-from .. import losses
-from .. import models
-from ..callbacks.eval import Evaluate
+from keras_maskrcnn import losses
+from keras_maskrcnn import models
+from keras_maskrcnn.callbacks.eval import Evaluate
 
 
 def model_with_weights(model, weights, skip_mismatch):
@@ -160,7 +160,7 @@ def create_generators(args):
                 config=args.config
             )
     elif args.dataset_type == 'csv':
-        from ..preprocessing.csv_generator import CSVGenerator
+        from keras_maskrcnn.preprocessing.csv_generator import CSVGenerator
 
         train_generator = CSVGenerator(
             args.annotations,
