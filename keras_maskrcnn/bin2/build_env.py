@@ -9,25 +9,25 @@ Dataset Dir Tree:
 ROOT:
 |-- annotation-instance-segmentation
 |   |-- metadata
-|   |   |-- challenge-2019-classes-description-segmentable.csv    # class_csv for short.
-|   |   |-- challenge-2019-label300-segmentable-hierarchy.json    # hierarchy_json for short
+|   |   |-- challenge-2019-classes-description-segmentable.csv  # class_csv for short.
+|   |   |-- challenge-2019-label300-segmentable-hierarchy.json  # hierarchy_json for short
 |   |-- train
 |   |   |-- challenge-2019-train-masks
-|   |   |   |-- challenge-2019-train-segmentation-masks.csv       # mask_csv for short.
+|   |   |   |-- challenge-2019-train-segmentation-masks.csv     # mask_csv for short.
 |   |   |   |-- challenge-2019-train-masks-[0~f].zip
-|   |   |-- all-masks  # n_mask: 2125530
-|   |   |-- challenge-2019-train-segmentation-bbox.csv            # bbox_csv for short.
-|   |   |-- challenge-2019-train-segmentation-labels.csv          # label_csv for short.
+|   |   |-- all-masks                                           # N_MASK: 2125530
+|   |   |-- challenge-2019-train-segmentation-bbox.csv          # bbox_csv for short.
+|   |   |-- challenge-2019-train-segmentation-labels.csv        # label_csv for short.
 |   |-- validation
 |       |-- challenge-2019-validation-masks
 |       |   |-- challenge-2019-validation-segmentation-masks.csv
 |       |   |-- challenge-2019-validation-masks-[0~f].zip
-|       |-- all-masks  # n_mask: 23366
+|       |-- all-masks                                           # N_MASK: 23366
 |       |-- challenge-2019-validation-segmentation-bbox.csv
 |       |-- challenge-2019-validation-segmentation-labels.csv
-|-- train
-|-- validation
-|-- test
+|-- train       # N_IMAGE
+|-- validation  # N_IMAGE
+|-- test        # N_IMAGE
 """
 
 
@@ -35,11 +35,13 @@ import os
 import random
 import pandas as pd
 
+
 SRC_ROOT = 'gs://tyu-ins'
-DST_ROOT = 'gs://tyu-ins-sample'
-N_SAMPLE_TRAIN = 300
+DST_ROOT = '/tmp/tyu-ins-sample'
+
+N_SAMPLE_TRAIN      = 300
 N_SAMPLE_VALIDATION = 100
-N_SAMPLE_TEST = 100
+N_SAMPLE_TEST       = 100
 
 
 def row_filter(df: pd.DataFrame, on: str, to_stay: list):
@@ -53,6 +55,7 @@ if SRC_ROOT and DST_ROOT:
         if 'metadata':
             src = f'{SRC_ROOT}/annotation-instance-segmentation/metadata'
             dst = f'{DST_ROOT}/annotation-instance-segmentation/'
+            os.makedirs(dst, exist_ok=True)
             !gsutil cp -r $src $dst
         if 'train':
             if 'challenge-2019-train-masks':
@@ -72,7 +75,8 @@ if SRC_ROOT and DST_ROOT:
                 dst = f'{DST_ROOT}/annotation-instance-segmentation/train/all-masks/'
                 with open('./sampled_mask_paths_train.txt', 'w') as f:
                     f.write('\n'.join(src))
-                !cat './sampled_mask_paths_train.txt' | gsutil -m cp -I $dst
+                os.makedirs(dst, exist_ok=True)
+                !cat './sampled_mask_paths_train.txt' | gsutil -q -m cp -I $dst
             if 'challenge-2019-train-segmentation-bbox.csv':
                 src = f'{SRC_ROOT}/annotation-instance-segmentation/train/challenge-2019-train-segmentation-bbox.csv'
                 dst = f'{DST_ROOT}/annotation-instance-segmentation/train/challenge-2019-train-segmentation-bbox.csv'
@@ -107,7 +111,8 @@ if SRC_ROOT and DST_ROOT:
                 dst = f'{DST_ROOT}/annotation-instance-segmentation/validation/all-masks/'
                 with open('./sampled_mask_paths_valid.txt', 'w') as f:
                     f.write('\n'.join(src))
-                !cat './sampled_mask_paths_valid.txt' | gsutil -m cp -I $dst
+                os.makedirs(dst, exist_ok=True)
+                !cat './sampled_mask_paths_valid.txt' | gsutil -q -m cp -I $dst
             if 'challenge-2019-validation-segmentation-bbox.csv':
                 src = f'{SRC_ROOT}/annotation-instance-segmentation/validation/challenge-2019-validation-segmentation-bbox.csv'
                 dst = f'{DST_ROOT}/annotation-instance-segmentation/validation/challenge-2019-validation-segmentation-bbox.csv'
@@ -129,20 +134,23 @@ if SRC_ROOT and DST_ROOT:
         dst = f'{DST_ROOT}/train/'
         with open('./sampled_id_paths_train.txt', 'w') as f:
             f.write('\n'.join(src))
-        !cat './sampled_id_paths_train.txt' | gsutil -m cp -I $dst
+        os.makedirs(dst, exist_ok=True)
+        !cat './sampled_id_paths_train.txt' | gsutil -q -m cp -I $dst
     if 'validation':
         src = list(map(lambda id: f'{SRC_ROOT}/validation/{id}.jpg', SAMPLED_IDS_VALID))
         dst = f'{DST_ROOT}/validation/'
         with open('./sampled_id_paths_valid.txt', 'w') as f:
             f.write('\n'.join(src))
-        !cat './sampled_id_paths_valid.txt' | gsutil -m cp -I $dst
+        os.makedirs(dst, exist_ok=True)
+        !cat './sampled_id_paths_valid.txt' | gsutil -q -m cp -I $dst
     if 'test':
         src = os.popen(f'gsutil ls {SRC_ROOT}/test').read().split('\n')[:-1]
         dst = f'{DST_ROOT}/test/'
         sampled_id_paths_test = random.choices(src, k=N_SAMPLE_TEST)
         with open('sampled_id_paths_test.txt', 'w') as f:
             f.write('\n'.join(sampled_id_paths_test))
-        !cat './sampled_id_paths_test.txt' | gsutil -m cp -I $dst
+        os.makedirs(dst, exist_ok=True)
+        !cat './sampled_id_paths_test.txt' | gsutil -q -m cp -I $dst
 
 
 

@@ -34,7 +34,7 @@ class ResNetBackbone(Backbone, keras_retinanet.models.resnet.ResNetBackbone):
 def resnet_maskrcnn(num_classes, backbone='resnet50', inputs=None, modifier=None, mask_dtype=K.floatx(), **kwargs):
     # choose default input
     if inputs is None:
-        inputs = layers.Input(shape=(None, None, 3), name='image')
+        inputs = layers.Input(shape=(1024, 1024, 3), name='image')
 
     # create the resnet backbone
     if backbone == 'resnet50':

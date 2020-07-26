@@ -47,6 +47,18 @@ RUN_ON = 'local' if os.path.exists('C:/') else \
          'kaggle' if os.path.exists('/kaggle') else \
          'gcp'
 
+try:  # Detect hardware, return appropriate distribution strategy
+    import tensorflow as tf
+    TPU = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
+    print('Running on TPU ', TPU.cluster_spec().as_dict()['worker'])
+    tf.config.experimental_connect_to_cluster(TPU)
+    tf.tpu.experimental.initialize_tpu_system(TPU)
+    # instantiate a distribution strategy
+    STRATEGY = tf.distribute.experimental.TPUStrategy(TPU)
+except ValueError:
+    TPU      = None
+    STRATEGY = tf.distribute.OneDeviceStrategy('/CPU:0')
+
 if '--csv' in sys.argv:
     # if cli is used, set config by cli args.
     CONFIG = parser.parse_args()
@@ -56,14 +68,30 @@ else:
         dir_dataset        = '../open-images-dataset'
         pretrained_weights = '../ins/weights/mask_rcnn_resnet50_oid_v1.0.h5'
         dir_tfrecord       = '../ins-tfrecord'
+        batch_size         = 4
+    elif RUN_ON == 'kaggle':
+        # Step 1: Get the credential from the Cloud SDK
+        from kaggle_secrets import UserSecretsClient
+        user_secrets = UserSecretsClient()
+        user_credential = user_secrets.get_gcloud_credential()
+        # Step 2: Set the credentials
+        user_secrets.set_tensorflow_credential(user_credential)
+        # Step 3: Use a familiar call to get the GCS path of the dataset
+        from kaggle_datasets import KaggleDatasets
+        GCS_DS_PATH = KaggleDatasets().get_gcs_path('instfrecord')
+
+        dir_dataset        = 'gs://tyu-ins-sample'
+        pretrained_weights = '../input/download-models/resnet50_oid_v1.0.1.h5'
+        dir_tfrecord       = f'{GCS_DS_PATH}/tfrecord'
+        batch_size         = 4 if TPU is None else 16 * STRATEGY.num_replicas_in_sync
     else:
         dir_dataset        = 'gs://tyu-ins-sample'
         pretrained_weights = '../input/download-models/resnet50_oid_v1.0.1.h5'
         dir_tfrecord       = 'gs://tyu-ins-sample-tfrecord'
+        batch_size         = 4 if TPU is None else 16 * STRATEGY.num_replicas_in_sync
     # Dir to save checkpoint.
     dir_snapshot = './keras_maskrcnn/bin/snapshot/'
     path_anno    = dir_dataset + '/annotation-instance-segmentation/'
-    batch_size   = 4
 
     CLI_ARGS = [
         # '--snapshot', SNAPSHOT_DIR + 'mask_rcnn_resnet50_oid_v1.0.h5',
@@ -172,8 +200,9 @@ if 'tf.data.Dataset':
     fnames = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
     fnames = tf.random.shuffle(fnames)
     ds_fnames = tf.data.Dataset.from_tensor_slices(fnames)
+    # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
     ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
-    ds_raw_example = ds_raw_example.shuffle(buffer_size=10000)
+    ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
     ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
     ds_example = ds_raw_example.map(lambda x: tf.io.parse_single_sequence_example(
@@ -190,7 +219,8 @@ if 'tf.data.Dataset':
     ))
 
     def _decode_example(ctx, seq):
-        image  = tf.image.decode_jpeg(ctx['image_raw'], channels=3)
+        image  = tf.cast(tf.image.decode_jpeg(ctx['image_raw'], channels=3), tf.float32) / 255.0
+        image  = tf.image.resize(image, size=(1024, 1024))
         h_w    = tf.shape(image)[:2]
         masks  = tf.map_fn(lambda x: tf.image.decode_png(x, channels=1),
                           elems=seq['li_mask_raw'], dtype='uint8')
@@ -207,7 +237,7 @@ if 'tf.data.Dataset':
                 'masks'      : masks,
                 'masks_shape': tf.shape(masks)}
 
-    ds_batch = ds_example.map(_decode_example).padded_batch(4)
+    ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size)
     # tmp = list(ds_batch.take(3))
 
     def batch_to_input(batch):
@@ -358,7 +388,7 @@ if 'tf.data.Dataset':
 
 if __name__ == '__main__':
     if not os.path.isdir(CONFIG.snapshot_path):
-        os.mkdir(CONFIG.snapshot_path)
+        os.makedirs(CONFIG.snapshot_path)
     # create object that stores backbone information
     backbone = models.backbone(CONFIG.backbone)
 
@@ -389,16 +419,7 @@ if __name__ == '__main__':
         model.summary()
         return model, training_model, prediction_model
 
-    if RUN_ON in ['kaggle', 'gcp']:
-        tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
-        tf.config.experimental_connect_to_cluster(tpu)
-        tf.tpu.experimental.initialize_tpu_system(tpu)
-        # instantiate a distribution strategy
-        tpu_strategy = tf.distribute.experimental.TPUStrategy(tpu)
-        # instantiating the model in the strategy scope creates the model on the TPU
-        with tpu_strategy.scope():
-            model, model_train, model_predict = _create_model()
-    else:
+    with STRATEGY.scope():
         model, model_train, model_predict = _create_model()
 
     print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
@@ -419,13 +440,13 @@ if __name__ == '__main__':
     if CONFIG.snapshot is not None:
         initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
 
-    # start training
-    model_train.fit(
-        x=ds_inp,
-        steps_per_epoch=CONFIG.steps,
-        epochs=CONFIG.epochs,
-        verbose=1,
-        callbacks=None,
-        max_queue_size=1,
-        initial_epoch=initial_epoch,
-    )
+    # # start training
+    # model_train.fit(
+    #     x=ds_inp,
+    #     steps_per_epoch=CONFIG.steps,
+    #     epochs=CONFIG.epochs,
+    #     verbose=1,
+    #     callbacks=None,
+    #     max_queue_size=1,
+    #     initial_epoch=initial_epoch,
+    # )

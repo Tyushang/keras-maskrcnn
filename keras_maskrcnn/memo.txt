@@ -94,3 +94,8 @@ _3: How to debug keras model:
         see: https://stackoverflow.com/questions/42233963/how-can-i-print-the-intermediate-variables-in-the-loss-function-in-tensorflow-an
     _b: use K.function.
         see: https://keras.io/zh/getting-started/faq/
+
+
+WARNING:tensorflow:Skipping loading of weights for layer anchors_0 due to mismatch in number of weights (1 vs 0).
+
+TPUs do not support DT_UINT8 data type for your operation. Please check that the operation data types are supported by TPUs.

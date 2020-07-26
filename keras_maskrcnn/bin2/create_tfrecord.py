@@ -201,7 +201,7 @@ def process_tst(src_paths, output_dir, n_shard):
 
 
 if __name__ == '__main__':
-    process_trn_val('train', PATHS['train'],      f'{CONFIG["dst"]}/train', N_SHARD_TRN)
+    process_trn_val('train',      PATHS['train'],      f'{CONFIG["dst"]}/train',      N_SHARD_TRN)
     process_trn_val('validation', PATHS['validation'], f'{CONFIG["dst"]}/validation', N_SHARD_VAL)
     process_tst(PATHS['test'], f'{CONFIG["dst"]}/test', N_SHARD_TST)
 
