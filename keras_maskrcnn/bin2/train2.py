@@ -4,6 +4,7 @@
 # argparse:
 import os, sys, argparse
 
+
 parser     = argparse.ArgumentParser(description='Simple training script for training a RetinaNet mask network.')
 subparsers = parser.add_subparsers(help='Arguments for specific dataset types.', dest='dataset_type')
 subparsers.required = True
@@ -68,7 +69,7 @@ else:
         dir_dataset        = '../open-images-dataset'
         pretrained_weights = '../ins/weights/mask_rcnn_resnet50_oid_v1.0.h5'
         dir_tfrecord       = '../ins-tfrecord'
-        batch_size         = 4
+        batch_size         = 2
     elif RUN_ON == 'kaggle':
         # Step 1: Get the credential from the Cloud SDK
         from kaggle_secrets import UserSecretsClient
@@ -82,7 +83,7 @@ else:
 
         dir_dataset        = 'gs://tyu-ins-sample'
         pretrained_weights = '../input/download-models/resnet50_oid_v1.0.1.h5'
-        dir_tfrecord       = f'{GCS_DS_PATH}/tfrecord'
+        dir_tfrecord       = GCS_DS_PATH
         batch_size         = 4 if TPU is None else 16 * STRATEGY.num_replicas_in_sync
     else:
         dir_dataset        = 'gs://tyu-ins-sample'
@@ -98,7 +99,7 @@ else:
         # '--imagenet-weights',
         # '--freeze-backbone',
         '--weights', pretrained_weights,
-        '--epochs', '2',
+        '--epochs', '10',
         '--gpu', '2',
         '--steps', '5',
         '--snapshot-path', dir_snapshot,
@@ -115,6 +116,9 @@ else:
     ]
     CONFIG = parser.parse_args(CLI_ARGS)
 
+FIX_SHAPE = (256, 256, 3)
+# tf.keras.backend.clear_session()
+# tf.config.optimizer.set_jit(True) # Enable XLA.
 # _________________________________________________________________________________________________
 # #### Configurations that do not need to change:
 import pandas as pd
@@ -139,7 +143,7 @@ from keras_maskrcnn import models
 from albumentations import *
 #
 from keras_maskrcnn.utils.ins_utils import *
-
+from keras_maskrcnn.models.resnet import resnet_maskrcnn
 
 def model_with_weights(model, weights, skip_mismatch):
     if weights is not None:
@@ -147,16 +151,20 @@ def model_with_weights(model, weights, skip_mismatch):
     return model
 
 
+# @tf.function  # (experimental_compile=True)
 def create_models(backbone_retinanet, num_classes, weights, args, freeze_backbone=False, class_specific_filter=True, anchor_params=None):
     modifier = freeze_model if freeze_backbone else None
 
     model = model_with_weights(
-        backbone_retinanet(
+        resnet_maskrcnn(
             num_classes,
+            backbone=backbone_retinanet,
+            input_shape=FIX_SHAPE if FIX_SHAPE is not None else (None, None, 3),
             nms=True,
             class_specific_filter=class_specific_filter,
             modifier=modifier,
             anchor_params=anchor_params
+            # use_tpu=TPU is not None,
         ), weights=weights, skip_mismatch=True)
     training_model   = model
     prediction_model = model
@@ -199,7 +207,7 @@ if 'tf.data.Dataset':
 
     fnames = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
     fnames = tf.random.shuffle(fnames)
-    ds_fnames = tf.data.Dataset.from_tensor_slices(fnames)
+    ds_fnames = tf.data.Dataset.from_tensor_slices(fnames).repeat()
     # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
     ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
     ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
@@ -219,15 +227,15 @@ if 'tf.data.Dataset':
     ))
 
     def _decode_example(ctx, seq):
-        image  = tf.cast(tf.image.decode_jpeg(ctx['image_raw'], channels=3), tf.float32) / 255.0
-        image  = tf.image.resize(image, size=(1024, 1024))
-        h_w    = tf.shape(image)[:2]
+        image  = tf.image.decode_jpeg(ctx['image_raw'], channels=3)  # tf.cast(, tf.float32) / 255.0
+        if FIX_SHAPE is not None:
+            image  = tf.image.resize(image, size=FIX_SHAPE[:2])
+        h, w   = tf.unstack(tf.shape(image)[:2])
         masks  = tf.map_fn(lambda x: tf.image.decode_png(x, channels=1),
                           elems=seq['li_mask_raw'], dtype='uint8')
-        masks  = tf.image.resize(masks, size=h_w)
+        masks  = tf.image.resize(masks, size=(h, w))
         # normalized box to absolute box.
-        w_h    = tf.cast(tf.reverse(h_w, axis=[0]), seq['li_box'].dtype)
-        boxes  = seq['li_box'] * tf.concat([w_h, w_h], axis=0)
+        boxes  = seq['li_box'] * tf.convert_to_tensor([w, h, w, h], dtype=seq['li_box'].dtype)
         # MID name to No.
         labels = MID_TO_NO.lookup(seq['li_label_name'])
 
@@ -237,7 +245,8 @@ if 'tf.data.Dataset':
                 'masks'      : masks,
                 'masks_shape': tf.shape(masks)}
 
-    ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size)
+    ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size, drop_remainder=True)
+
     # tmp = list(ds_batch.take(3))
 
     def batch_to_input(batch):
@@ -249,12 +258,8 @@ if 'tf.data.Dataset':
 
         # TODO: compute resize shape.
 
-        bat_size   = tf.shape(bat_masks)[0]
-        bat_n_anno = tf.shape(bat_masks)[1]
-        bat_h      = tf.shape(bat_masks)[2]
-        bat_w      = tf.shape(bat_masks)[3]
-        bat_h_w    = tf.shape(bat_masks)[-2:]
-        anchors = get_anchors_for_shape(image_shape=bat_h_w)
+        bat_size, bat_n_anno, bat_h, bat_w, *_ = tf.unstack(tf.shape(bat_masks))
+        anchors = get_anchors_for_shape(image_shape=(bat_h, bat_w))
 
         bat_reg, bat_cls = get_anchor_targets_batch(anchors, bat_boxes, bat_labels, N_CLASS)
 
@@ -350,7 +355,7 @@ if 'tf.data.Dataset':
         def _get_centered_anchors(base_size, ratios, scales):
             # ratioed_boxes is centered boxes with specified aspect ratio and area of 1.
             ratioed_boxes = tf.map_fn(lambda r: tf.concat([[-1 / 2], [-r / 2], [1 / 2], [r / 2]], axis=0) / tf.sqrt(r),
-                                      ratios)
+                                      elems=ratios)
             # ratioed_scaled_boxes[i][j] is box that has ratio of ratios[i] and scale of scales[j].
             ratioed_scaled_boxes = base_size * ratioed_boxes[:, tf.newaxis, :] * scales[tf.newaxis, :, tf.newaxis]
 
@@ -369,7 +374,7 @@ if 'tf.data.Dataset':
 
             return tf.reshape(shift_along_y_x, (-1, 4))
 
-        image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in pyramid_levels]
+        image_shapes = [(tf.convert_to_tensor(image_shape) + 2 ** x - 1) // (2 ** x) for x in pyramid_levels]
         # compute anchors over all pyramid levels
         all_anchors = []
         for i_level, p in enumerate(pyramid_levels):
@@ -407,7 +412,7 @@ if __name__ == '__main__':
             anchor_params = None
             print('Creating model, this may take a second...')
             model, training_model, prediction_model = create_models(
-                backbone_retinanet=backbone.maskrcnn,
+                backbone_retinanet='resnet50',
                 num_classes=N_CLASS,
                 weights=weights,
                 args=CONFIG,
@@ -440,13 +445,13 @@ if __name__ == '__main__':
     if CONFIG.snapshot is not None:
         initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
 
-    # # start training
-    # model_train.fit(
-    #     x=ds_inp,
-    #     steps_per_epoch=CONFIG.steps,
-    #     epochs=CONFIG.epochs,
-    #     verbose=1,
-    #     callbacks=None,
-    #     max_queue_size=1,
-    #     initial_epoch=initial_epoch,
-    # )
+    # start training
+    model_train.fit(
+        x=ds_inp,
+        steps_per_epoch=CONFIG.steps,
+        epochs=CONFIG.epochs,
+        verbose=1,
+        callbacks=None,
+        max_queue_size=1,
+        initial_epoch=initial_epoch,
+    )

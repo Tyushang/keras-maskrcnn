@@ -21,7 +21,7 @@ from tensorflow.keras import layers
 import keras_resnet
 import keras_resnet.models
 import keras_retinanet.models.resnet
-from ..models import retinanet, Backbone
+from keras_maskrcnn.models import retinanet, Backbone
 
 
 class ResNetBackbone(Backbone, keras_retinanet.models.resnet.ResNetBackbone):
@@ -31,18 +31,19 @@ class ResNetBackbone(Backbone, keras_retinanet.models.resnet.ResNetBackbone):
         return resnet_maskrcnn(*args, backbone=self.backbone, **kwargs)
 
 
-def resnet_maskrcnn(num_classes, backbone='resnet50', inputs=None, modifier=None, mask_dtype=K.floatx(), **kwargs):
+def resnet_maskrcnn(num_classes, backbone='resnet50', input_shape=(None, None, 3), modifier=None, mask_dtype=K.floatx(), **kwargs):
     # choose default input
-    if inputs is None:
-        inputs = layers.Input(shape=(1024, 1024, 3), name='image')
+    inputs = layers.Input(shape=input_shape, name='image')
 
     # create the resnet backbone
     if backbone == 'resnet50':
-        resnet = keras_resnet.models.ResNet50(inputs, include_top=False, freeze_bn=True)
+        resnet = keras_resnet.models.ResNet50 (inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet101':
         resnet = keras_resnet.models.ResNet101(inputs, include_top=False, freeze_bn=True)
     elif backbone == 'resnet152':
         resnet = keras_resnet.models.ResNet152(inputs, include_top=False, freeze_bn=True)
+    else:
+        raise Exception('backbone must be one of [resnet50|resnet101|resnet152].')
 
     # invoke modifier if given
     if modifier:
@@ -54,13 +55,13 @@ def resnet_maskrcnn(num_classes, backbone='resnet50', inputs=None, modifier=None
     return model
 
 
-def resnet50_maskrcnn(num_classes, inputs=None, **kwargs):
-    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet50', inputs=inputs, **kwargs)
+def resnet50_maskrcnn(num_classes, input_shape=(None, None, 3), **kwargs):
+    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet50', input_shape=input_shape, **kwargs)
 
 
-def resnet101_maskrcnn(num_classes, inputs=None, **kwargs):
-    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet101', inputs=inputs, **kwargs)
+def resnet101_maskrcnn(num_classes, input_shape=(None, None, 3), **kwargs):
+    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet101', input_shape=input_shape, **kwargs)
 
 
-def resnet152_maskrcnn(num_classes, inputs=None, **kwargs):
-    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet152', inputs=inputs, **kwargs)
+def resnet152_maskrcnn(num_classes, input_shape=(None, None, 3), **kwargs):
+    return resnet_maskrcnn(num_classes=num_classes, backbone='resnet152', input_shape=input_shape, **kwargs)
