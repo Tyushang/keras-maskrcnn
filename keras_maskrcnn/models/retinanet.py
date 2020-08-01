@@ -22,7 +22,7 @@ import keras_retinanet.layers
 import keras_retinanet.models.retinanet
 import keras_retinanet.backend.tensorflow_backend as backend
 
-from ..layers.roi import RoiAlign
+from ..layers.roi import RoiAlign, RoiAlignTPU
 from ..layers.upsample import Upsample
 from ..layers.misc import Shape, ConcatenateBoxes, Cast
 
@@ -163,7 +163,7 @@ def retinanet_mask(
     other          = retinanet_model.outputs[2:]
     features       = [retinanet_model.get_layer(name).output for name in ['P3', 'P4', 'P5', 'P6', 'P7']]
 
-    # build boxes
+    # build boxes, anchors and boxes are absolute(w.r.t input image).
     anchors = keras_retinanet.models.retinanet.__build_anchors(anchor_params, features)
     boxes = keras_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
     boxes = keras_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
@@ -176,12 +176,14 @@ def retinanet_mask(
         name                  = 'filtered_detections'
     )([boxes, classification] + other)
 
+    # TODO: how about boxes with unexpected values?
+
     # split up in known outputs and "other"
     boxes  = detections[0]
     scores = detections[1]
 
     # get the region of interest features
-    rois = RoiAlign()([image_shape, boxes, scores] + features)
+    rois = RoiAlignTPU()([image_shape, boxes, scores] + features)
 
     # execute maskrcnn submodels
     maskrcnn_outputs = [submodel(rois) for _, submodel in roi_submodels]

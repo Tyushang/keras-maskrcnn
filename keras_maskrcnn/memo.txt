@@ -48,21 +48,22 @@ output of transform{
 }
 
 Shape Analyze:
-image shape:        [2, 876, 1876, 3]  # [B, H, W, C]
+image shape:        [2, 876, 1876, 3]   # [B, H, W, C]
 resnet50 C3,C4,C5:  (2, 110, 235, 512)
                     (2,  55, 118, 1024)
                     (2,  28,  59, 2048)
-retinanet/P3~P7:    (2, 110, 235, 256)
+retinanet/P3~P7:    (2, 110, 235, 256)  # [B, PiH, PiW, PiC]
                     (2,  55, 118, 256)
                     (2,  28,  59, 256)
                     (2,  14,  30, 256)
                     (2,   7,  15, 256)
-regression:         (2, 232650, 4)
+regression:         (2, 232650, 4)      # [B, PiH * PiW * n_anchor_centered, 4]
                     (2,  58410, 4)
                     (2,  14868, 4)
                     (2,   3780, 4)
                     (2,    945, 4)
-concat_regression:  [(310653, 4), (310653, 4)]  # 310653 = sum(regression.shape[1])
+concat_regression:  [(310653, 4), (310653, 4)]  # [B, sum_i(PiH * PiW * n_anchor_centered), 4]
+
 
 classification:         (2, 232650, 300)
                         (2,  58410, 300)
@@ -95,7 +96,14 @@ _3: How to debug keras model:
     _b: use K.function.
         see: https://keras.io/zh/getting-started/faq/
 
+_4: Run-time Error:
+    tensorflow.python.framework.errors_impl.InvalidArgumentError:  Requires delta != 0: 0
+         [[{{node gradient_tape/retinanet-mask/filtered_detections/map/while/retinanet-mask/filtered_detections/map/while_grad/body/_3101/gradients/TopKV2_grad/range}}]] [Op:__inference_train_function_75266]
+    when cast input image from uint8 to float32, it's easier to happen; when memory usage of computer is high, it's easier to happen;
+    So, we infer that: lack of memory is the cause of this error.
 
 WARNING:tensorflow:Skipping loading of weights for layer anchors_0 due to mismatch in number of weights (1 vs 0).
 
 TPUs do not support DT_UINT8 data type for your operation. Please check that the operation data types are supported by TPUs.
+
+difference between image dtype uint8 and float32?

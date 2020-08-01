@@ -58,7 +58,7 @@ try:  # Detect hardware, return appropriate distribution strategy
     STRATEGY = tf.distribute.experimental.TPUStrategy(TPU)
 except ValueError:
     TPU      = None
-    STRATEGY = tf.distribute.OneDeviceStrategy('/CPU:0')
+    STRATEGY = tf.distribute.get_strategy()
 
 if '--csv' in sys.argv:
     # if cli is used, set config by cli args.
@@ -116,7 +116,7 @@ else:
     ]
     CONFIG = parser.parse_args(CLI_ARGS)
 
-FIX_SHAPE = (256, 256, 3)
+FIX_H_W = (600, 600)
 # tf.keras.backend.clear_session()
 # tf.config.optimizer.set_jit(True) # Enable XLA.
 # _________________________________________________________________________________________________
@@ -151,16 +151,15 @@ def model_with_weights(model, weights, skip_mismatch):
     return model
 
 
-# @tf.function  # (experimental_compile=True)
-def create_models(backbone_retinanet, num_classes, weights, args, freeze_backbone=False, class_specific_filter=True, anchor_params=None):
+def create_models(backbone_retinanet, n_class, weights, nms=True, freeze_backbone=False, class_specific_filter=True, anchor_params=None):
     modifier = freeze_model if freeze_backbone else None
 
     model = model_with_weights(
         resnet_maskrcnn(
-            num_classes,
+            n_class,
             backbone=backbone_retinanet,
-            input_shape=FIX_SHAPE if FIX_SHAPE is not None else (None, None, 3),
-            nms=True,
+            input_shape=(*FIX_H_W, 3) if FIX_H_W is not None else (None, None, 3),
+            nms=nms,
             class_specific_filter=class_specific_filter,
             modifier=modifier,
             anchor_params=anchor_params
@@ -226,11 +225,16 @@ if 'tf.data.Dataset':
         }
     ))
 
+    def compute_image_h_w(origin_h_w):
+        if FIX_H_W is not None:
+            return FIX_H_W
+        else:
+            return tf.unstack(origin_h_w / 2)
+
     def _decode_example(ctx, seq):
-        image  = tf.image.decode_jpeg(ctx['image_raw'], channels=3)  # tf.cast(, tf.float32) / 255.0
-        if FIX_SHAPE is not None:
-            image  = tf.image.resize(image, size=FIX_SHAPE[:2])
-        h, w   = tf.unstack(tf.shape(image)[:2])
+        image  = tf.cast(tf.image.decode_jpeg(ctx['image_raw'], channels=3), tf.float32)  # tf.cast(, tf.float32) / 255.0
+        h, w   = compute_image_h_w(tf.shape(image)[:2])
+        image  = tf.image.resize(image, size=(h, w))
         masks  = tf.map_fn(lambda x: tf.image.decode_png(x, channels=1),
                           elems=seq['li_mask_raw'], dtype='uint8')
         masks  = tf.image.resize(masks, size=(h, w))
@@ -388,7 +392,7 @@ if 'tf.data.Dataset':
 
 
     ds_inp = ds_batch.map(batch_to_input)
-    tt = list(ds_inp.take(3))
+    tt = list(ds_inp.take(4))
 
 
 if __name__ == '__main__':
@@ -413,9 +417,9 @@ if __name__ == '__main__':
             print('Creating model, this may take a second...')
             model, training_model, prediction_model = create_models(
                 backbone_retinanet='resnet50',
-                num_classes=N_CLASS,
+                n_class=N_CLASS,
                 weights=weights,
-                args=CONFIG,
+                nms=True,
                 freeze_backbone=CONFIG.freeze_backbone,
                 class_specific_filter=CONFIG.class_specific_filter,
                 anchor_params=anchor_params
@@ -426,6 +430,14 @@ if __name__ == '__main__':
 
     with STRATEGY.scope():
         model, model_train, model_predict = _create_model()
+
+
+    # @tf.function(experimental_compile=True)
+    # def foo(x, model):
+    #     return model(x)
+    #
+    #
+    # yy = foo(tt[0][0], model)
 
     print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
     if CONFIG.lr > 0.0:
@@ -445,6 +457,12 @@ if __name__ == '__main__':
     if CONFIG.snapshot is not None:
         initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
 
+
+    loss_fn_reg = keras_retinanet.losses.smooth_l1()
+    loss_fn_cls = keras_retinanet.losses.focal()
+    loss_fn_msk = losses.mask()
+    optimizer   = tf.keras.optimizers.Adam(lr=1e-5, )
+
     # start training
     model_train.fit(
         x=ds_inp,
@@ -455,3 +473,28 @@ if __name__ == '__main__':
         max_queue_size=1,
         initial_epoch=initial_epoch,
     )
+
+    # @tf.function(experimental_compile=True)
+    # def train_step(images, labels):
+    #     true_reg, true_cls, true_msk = labels
+    #
+    #     with tf.GradientTape() as tape:
+    #         reg, cls, msk = model_train(images)
+    #         #             'regression'    : keras_retinanet.losses.smooth_l1(),
+    #         #             'classification': keras_retinanet.losses.focal(),
+    #         #             'masks'         : losses.mask(),
+    #         loss_reg = loss_fn_cls(true_reg, reg)
+    #         loss_cls = loss_fn_reg(true_cls, cls)
+    #         loss_msk = loss_fn_msk(true_msk, msk)
+    #         tf.print(loss_reg, loss_cls, loss_msk)
+    #
+    #         loss = tf.reduce_mean([loss_reg, loss_cls, loss_msk])
+    #
+    #     layer_variables = model_train.trainable_variables
+    #     grads = tape.gradient(loss, layer_variables)
+    #     optimizer.apply_gradients(zip(grads, layer_variables))
+    #
+    # for x, y in ds_inp:
+    #     train_step(x, y)
+
+
