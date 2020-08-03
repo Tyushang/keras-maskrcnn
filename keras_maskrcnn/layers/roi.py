@@ -128,13 +128,13 @@ class RoiAlignTPU(layers.Layer):
         return levels
 
     def call(self, inputs, **kwargs):
-        image_shape   = K.cast(inputs[0], K.floatx())
-        bat_boxes_abs = K.stop_gradient(inputs[1])
-        bat_scores    = K.stop_gradient(inputs[2])
-        bat_features  = [K.stop_gradient(i) for i in inputs[3:]]
+        image_shape   = inputs[0]  # K.cast(inputs[0], K.floatx())
+        bat_boxes_abs = inputs[1]  # K.stop_gradient(inputs[1])
+        bat_scores    = inputs[2]  # K.stop_gradient(inputs[2])
+        bat_features  = inputs[3:]  # [K.stop_gradient(i) for i in inputs[3:]]
 
         if 'check_boxes':
-            b, h, w, *_ = tf.unstack(image_shape)
+            b, h, w, *_ = tf.unstack(image_shape, name='tyu_ra_unstack137')
             # use broadcast to clip on last dimension.
             bat_boxes_abs  = tf.clip_by_value(bat_boxes_abs,
                                               clip_value_min=0.0,
@@ -151,8 +151,8 @@ class RoiAlignTPU(layers.Layer):
             # scores    shape: [max_detections, ]
             # features  shape: [H, W, C] for every feature in ['P3', 'P4', 'P5', 'P6', 'P7']
             boxes_abs, scores, features = args
-            max_detections, *_ = tf.unstack(tf.shape(boxes_abs))
-            max_feat_height, max_feat_width, *_ = tf.unstack(tf.shape(features[0]))
+            max_detections, *_ = tf.unstack(tf.shape(boxes_abs), name='tyu_ra_unstack154')
+            max_feat_height, max_feat_width, *_ = tf.unstack(tf.shape(features[0]), name='tyu_ra_unstack155')
             feat_shape_table = tf.stack(list(map(lambda f: tf.shape(f), features)), axis=0)
 
             # compute from which level to get features from
@@ -243,7 +243,7 @@ class RoiAlignTPU(layers.Layer):
 
         roi_batch = keras_retinanet.backend.map_fn(
             _roi_align,
-            elems=[bat_boxes_abs, bat_scores, bat_features],
+            elems=(bat_boxes_abs, bat_scores, bat_features),
             dtype=K.floatx(),
             parallel_iterations=self.parallel_iterations
         )

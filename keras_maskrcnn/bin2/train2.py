@@ -60,6 +60,9 @@ except ValueError:
     TPU      = None
     STRATEGY = tf.distribute.get_strategy()
 
+GPU = tf.config.experimental.list_physical_devices('GPU')
+GPU = GPU[0] if GPU else None
+
 if '--csv' in sys.argv:
     # if cli is used, set config by cli args.
     CONFIG = parser.parse_args()
@@ -84,12 +87,16 @@ else:
         dir_dataset        = 'gs://tyu-ins-sample'
         pretrained_weights = '../input/download-models/resnet50_oid_v1.0.1.h5'
         dir_tfrecord       = GCS_DS_PATH
-        batch_size         = 4 if TPU is None else 16 * STRATEGY.num_replicas_in_sync
+        batch_size         = 16 * STRATEGY.num_replicas_in_sync if TPU else \
+                             4  * STRATEGY.num_replicas_in_sync if GPU else \
+                             4
     else:
         dir_dataset        = 'gs://tyu-ins-sample'
         pretrained_weights = '../input/download-models/resnet50_oid_v1.0.1.h5'
         dir_tfrecord       = 'gs://tyu-ins-sample-tfrecord'
-        batch_size         = 4 if TPU is None else 16 * STRATEGY.num_replicas_in_sync
+        batch_size         = 16 * STRATEGY.num_replicas_in_sync if TPU else \
+                             8  * STRATEGY.num_replicas_in_sync if GPU else \
+                             4
     # Dir to save checkpoint.
     dir_snapshot = './keras_maskrcnn/bin/snapshot/'
     path_anno    = dir_dataset + '/annotation-instance-segmentation/'
@@ -99,9 +106,9 @@ else:
         # '--imagenet-weights',
         # '--freeze-backbone',
         '--weights', pretrained_weights,
-        '--epochs', '10',
+        '--epochs', '1',
         '--gpu', '2',
-        '--steps', '5',
+        '--steps', '3',
         '--snapshot-path', dir_snapshot,
         '--lr', '1e-5',
         '--backbone', 'resnet50',
@@ -125,6 +132,18 @@ import pandas as pd
 # class_names.columns: ['MID', 'class_name'], where 'MID' is 'label_name'
 CLASS_NAME_DF = pd.read_csv(CONFIG.class_names, names=['MID', 'class_name'])
 N_CLASS       = len(CLASS_NAME_DF)
+
+DTYPES_GPU = {
+    'image': tf.uint8,
+    'masks': tf.uint8,
+}
+
+DTYPES_TPU = {
+    'image': tf.float32,
+    'masks': tf.float32,
+}
+
+DTYPES = argparse.Namespace(**DTYPES_GPU)
 
 # _________________________________________________________________________________________________
 # Program:
@@ -201,29 +220,6 @@ def create_callbacks(model, training_model, prediction_model, validation_generat
 
 
 if 'tf.data.Dataset':
-    MID_TO_NO = tf.lookup.StaticHashTable(
-        tf.lookup.KeyValueTensorInitializer(CLASS_NAME_DF['MID'], CLASS_NAME_DF.index, value_dtype=tf.int32), -1)
-
-    fnames = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
-    fnames = tf.random.shuffle(fnames)
-    ds_fnames = tf.data.Dataset.from_tensor_slices(fnames).repeat()
-    # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
-    ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
-    ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
-    ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-
-    ds_example = ds_raw_example.map(lambda x: tf.io.parse_single_sequence_example(
-        serialized=x,
-        context_features={
-            'image_raw': tf.io.FixedLenFeature([], tf.string),
-        },
-        sequence_features={
-            'li_mask_id'   : tf.io.FixedLenSequenceFeature([ ], tf.string),
-            'li_mask_raw'  : tf.io.FixedLenSequenceFeature([ ], tf.string),
-            'li_label_name': tf.io.FixedLenSequenceFeature([ ], tf.string),
-            'li_box'       : tf.io.FixedLenSequenceFeature([4], tf.float32),
-        }
-    ))
 
     def compute_image_h_w(origin_h_w):
         if FIX_H_W is not None:
@@ -232,11 +228,11 @@ if 'tf.data.Dataset':
             return tf.unstack(origin_h_w / 2)
 
     def _decode_example(ctx, seq):
-        image  = tf.cast(tf.image.decode_jpeg(ctx['image_raw'], channels=3), tf.float32)  # tf.cast(, tf.float32) / 255.0
+        image  = tf.cast(tf.image.decode_jpeg(ctx['image_raw'], channels=3), DTYPES.image)  # tf.cast(, tf.float32) / 255.0
         h, w   = compute_image_h_w(tf.shape(image)[:2])
         image  = tf.image.resize(image, size=(h, w))
         masks  = tf.map_fn(lambda x: tf.image.decode_png(x, channels=1),
-                          elems=seq['li_mask_raw'], dtype='uint8')
+                          elems=seq['li_mask_raw'], dtype=DTYPES.masks)
         masks  = tf.image.resize(masks, size=(h, w))
         # normalized box to absolute box.
         boxes  = seq['li_box'] * tf.convert_to_tensor([w, h, w, h], dtype=seq['li_box'].dtype)
@@ -248,8 +244,6 @@ if 'tf.data.Dataset':
                 'labels'     : labels,
                 'masks'      : masks,
                 'masks_shape': tf.shape(masks)}
-
-    ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size, drop_remainder=True)
 
     # tmp = list(ds_batch.take(3))
 
@@ -391,10 +385,6 @@ if 'tf.data.Dataset':
         return tf.concat(all_anchors, axis=0)
 
 
-    ds_inp = ds_batch.map(batch_to_input)
-    tt = list(ds_inp.take(4))
-
-
 if __name__ == '__main__':
     if not os.path.isdir(CONFIG.snapshot_path):
         os.makedirs(CONFIG.snapshot_path)
@@ -428,73 +418,90 @@ if __name__ == '__main__':
         model.summary()
         return model, training_model, prediction_model
 
-    with STRATEGY.scope():
-        model, model_train, model_predict = _create_model()
-
-
-    # @tf.function(experimental_compile=True)
-    # def foo(x, model):
-    #     return model(x)
-    #
-    #
-    # yy = foo(tt[0][0], model)
-
-    print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
-    if CONFIG.lr > 0.0:
-        K.set_value(model.optimizer.lr, CONFIG.lr)
-        print('Updated learning rate: {}'.format(K.get_value(model.optimizer.lr)))
-
-    # # create the callbacks
-    # callbacks = create_callbacks(
-    #     model,
-    #     model_train,
-    #     model_predict,
-    #     validation_generator,
-    #     config,
-    # )
-
-    initial_epoch = 0
-    if CONFIG.snapshot is not None:
-        initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
-
-
     loss_fn_reg = keras_retinanet.losses.smooth_l1()
     loss_fn_cls = keras_retinanet.losses.focal()
     loss_fn_msk = losses.mask()
     optimizer   = tf.keras.optimizers.Adam(lr=1e-5, )
 
-    # start training
-    model_train.fit(
-        x=ds_inp,
-        steps_per_epoch=CONFIG.steps,
-        epochs=CONFIG.epochs,
-        verbose=1,
-        callbacks=None,
-        max_queue_size=1,
-        initial_epoch=initial_epoch,
-    )
+    with STRATEGY.scope():
+        model, model_train, model_predict = _create_model()
+        print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
+        if CONFIG.lr > 0.0:
+            K.set_value(model.optimizer.lr, CONFIG.lr)
+            print('Updated learning rate: {}'.format(K.get_value(model.optimizer.lr)))
 
-    # @tf.function(experimental_compile=True)
-    # def train_step(images, labels):
-    #     true_reg, true_cls, true_msk = labels
-    #
-    #     with tf.GradientTape() as tape:
-    #         reg, cls, msk = model_train(images)
-    #         #             'regression'    : keras_retinanet.losses.smooth_l1(),
-    #         #             'classification': keras_retinanet.losses.focal(),
-    #         #             'masks'         : losses.mask(),
-    #         loss_reg = loss_fn_cls(true_reg, reg)
-    #         loss_cls = loss_fn_reg(true_cls, cls)
-    #         loss_msk = loss_fn_msk(true_msk, msk)
-    #         tf.print(loss_reg, loss_cls, loss_msk)
-    #
-    #         loss = tf.reduce_mean([loss_reg, loss_cls, loss_msk])
-    #
-    #     layer_variables = model_train.trainable_variables
-    #     grads = tape.gradient(loss, layer_variables)
-    #     optimizer.apply_gradients(zip(grads, layer_variables))
-    #
-    # for x, y in ds_inp:
-    #     train_step(x, y)
+        MID_TO_NO = tf.lookup.StaticHashTable(
+            tf.lookup.KeyValueTensorInitializer(CLASS_NAME_DF['MID'], CLASS_NAME_DF.index, value_dtype=tf.int32), -1)
+
+        fnames = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
+        fnames = tf.random.shuffle(fnames)
+        ds_fnames = tf.data.Dataset.from_tensor_slices(fnames).repeat()
+        # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
+        ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
+        ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
+        ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+        ds_example = ds_raw_example.map(lambda x: tf.io.parse_single_sequence_example(
+            serialized=x,
+            context_features={
+                'image_raw': tf.io.FixedLenFeature([], tf.string),
+            },
+            sequence_features={
+                'li_mask_id': tf.io.FixedLenSequenceFeature([], tf.string),
+                'li_mask_raw': tf.io.FixedLenSequenceFeature([], tf.string),
+                'li_label_name': tf.io.FixedLenSequenceFeature([], tf.string),
+                'li_box': tf.io.FixedLenSequenceFeature([4], tf.float32),
+            }
+        ))
+        ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size, drop_remainder=True)
+        ds_input = ds_batch.map(batch_to_input)
+
+        if 'keras_fit':
+            initial_epoch = 0
+            if CONFIG.snapshot is not None:
+                initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
+
+            import datetime
+            log_dir     = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            tb_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+            # start training
+            model_train.fit(
+                x=ds_input,
+                steps_per_epoch=CONFIG.steps,
+                epochs=CONFIG.epochs,
+                verbose=1,
+                callbacks=[tb_callback],
+                max_queue_size=1,
+                initial_epoch=initial_epoch,
+            )
+
+        # if 'manual_train':
+        #     @tf.function(experimental_compile=True)
+        #     def train_step(images, labels):
+        #         true_reg, true_cls, true_msk = labels
+        #
+        #         with tf.GradientTape() as tape:
+        #             reg, cls, msk = model_train(images)
+        #             loss_reg = loss_fn_cls(true_reg, reg)
+        #             loss_cls = loss_fn_reg(true_cls, cls)
+        #             loss_msk = loss_fn_msk(true_msk, msk)
+        #             tf.print(loss_reg, loss_cls, loss_msk)
+        #
+        #             loss = tf.reduce_mean([loss_reg, loss_cls, loss_msk])
+        #
+        #         layer_variables = model_train.trainable_variables
+        #         grads = tape.gradient(loss, layer_variables)
+        #         optimizer.apply_gradients(zip(grads, layer_variables))
+        #
+        #     for x, y in ds_input:
+        #         train_step(x, y)
+        #         # print('infer '*10)
+        #         # model_train(x)
+        #         # print('after '*10)
+
+
+
+
 
 

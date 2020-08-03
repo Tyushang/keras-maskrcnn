@@ -104,6 +104,95 @@ _4: Run-time Error:
 
 WARNING:tensorflow:Skipping loading of weights for layer anchors_0 due to mismatch in number of weights (1 vs 0).
 
-TPUs do not support DT_UINT8 data type for your operation. Please check that the operation data types are supported by TPUs.
-
 difference between image dtype uint8 and float32?
+
+class Anchors, has incompatible Ops - Add.
+
+# TPU ------------------------------------------------------------------------------------------------------------------
+InvalidArgumentError: {{function_node __inference_train_function_73378}} Compilation failure: Detected unsupported operations when trying to compile graph mask_conditional_cond_true_63277_rewritten[] on XLA_TPU_JIT: FakeParam (No registered 'FakeParam' OpKernel for XLA_TPU_JIT devices compatible with node {{node FakeParam}}
+	 (OpKernel was found, but attributes didn't match) Requested Attributes: dtype=DT_VARIANT, shape=[]){{node FakeParam}}
+	 [[mask_conditional/cond]]
+	TPU compilation failed
+	 [[tpu_compile_succeeded_assert/_8250495487398947179/_10]]
+
+
+# CPU ------------------------------------------------------------------------------------------------------------------
+Where: unsupported op: No registered 'Where' OpKernel for XLA_CPU_JIT devices compatible with node {{node Where}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: Where, function: __inference_train_step_29373
+
+
+StringFormat: unsupported op: No registered 'StringFormat' OpKernel for XLA_CPU_JIT devices compatible with node {{node StringFormat}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: StringFormat, function: __inference_train_step_29373
+
+
+PrintV2: unsupported op: No registered 'PrintV2' OpKernel for XLA_CPU_JIT devices compatible with node {{node PrintV2}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: PrintV2, function: __inference_train_step_29373
+
+
+gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad: unsupported op: No registered 'ResizeNearestNeighborGrad' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad, function: __inference_train_step_29373
+
+
+FakeParam: unsupported op: No registered 'FakeParam' OpKernel for XLA_CPU_JIT devices compatible with node {{node FakeParam}}
+	 (OpKernel was found, but attributes didn't match) Requested Attributes: dtype=DT_VARIANT, shape=[]
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: cond, function: __inference_train_step_29373
+		Node: FakeParam, function: cond_true_24027_rewritten
+
+
+gradients/CropAndResize_grad/CropAndResizeGradImage: unsupported op: No registered 'CropAndResizeGradImage' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/CropAndResize_grad/CropAndResizeGradImage}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/cond/StatelessIf, function: __inference_train_step_29373
+		Node: gradients/map/while_grad/map/while_grad, function: cond_false_24028_grad_24449
+		Node: gradients/CropAndResize_grad/CropAndResizeGradImage, function: map_while_body_24113_grad_24469
+
+
+gradients/CropAndResize_grad/CropAndResizeGradBoxes: unsupported op: No registered 'CropAndResizeGradBoxes' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/CropAndResize_grad/CropAndResizeGradBoxes}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/cond/StatelessIf, function: __inference_train_step_29373
+		Node: gradients/map/while_grad/map/while_grad, function: cond_false_24028_grad_24449
+		Node: gradients/CropAndResize_grad/CropAndResizeGradBoxes, function: map_while_body_24113_grad_24469
+
+
+CropAndResize: unsupported op: No registered 'CropAndResize' OpKernel for XLA_CPU_JIT devices compatible with node {{node CropAndResize}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: cond, function: __inference_train_step_29373
+		Node: map/while, function: cond_false_24028_rewritten
+		Node: CropAndResize, function: map_while_body_24113_rewritten
+
+
+gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad: unsupported op: No registered 'ResizeNearestNeighborGrad' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/retinanet-mask/mask_submodel/roi_mask_upsample/while/retinanet-mask/mask_submodel/roi_mask_upsample/while_grad, function: __inference_train_step_29373
+		Node: gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad, function: retinanet-mask_mask_submodel_roi_mask_upsample_while_body_23834_grad_25657
+
+
+pad_to_bounding_box/Assert/Const: unsupported op: Const op with type DT_STRING is not supported by XLA.
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: retinanet-mask/roi_align_tpu/map/while, function: __inference_train_step_29373
+		Node: pad_to_bounding_box/Assert/Const, function: retinanet-mask_roi_align_tpu_map_while_body_23214_rewritten
+
+
+pad_to_bounding_box/Assert/Assert/data_0: unsupported op: Const op with type DT_STRING is not supported by XLA.
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: retinanet-mask/roi_align_tpu/map/while, function: __inference_train_step_29373
+		Node: pad_to_bounding_box/Assert/Assert/data_0, function: retinanet-mask_roi_align_tpu_map_while_body_23214_rewritten
+
+
+
+

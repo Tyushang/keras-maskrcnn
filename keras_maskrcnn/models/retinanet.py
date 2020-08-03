@@ -165,7 +165,7 @@ def retinanet_mask(
 
     # build boxes, anchors and boxes are absolute(w.r.t input image).
     anchors = keras_retinanet.models.retinanet.__build_anchors(anchor_params, features)
-    boxes = keras_retinanet.layers.RegressBoxes(name='boxes')([anchors, regression])
+    boxes = keras_retinanet.layers.RegressBoxesTPU(name='RegressBoxesTPU')([anchors, regression])
     boxes = keras_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
 
     # filter detections (apply NMS / score threshold / select top-k)
@@ -174,7 +174,7 @@ def retinanet_mask(
         class_specific_filter = class_specific_filter,
         max_detections        = 100,
         name                  = 'filtered_detections'
-    )([boxes, classification] + other)
+    )(tuple([boxes, classification] + other))
 
     # TODO: how about boxes with unexpected values?
 
