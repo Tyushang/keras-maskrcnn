@@ -168,13 +168,22 @@ def retinanet_mask(
     boxes = keras_retinanet.layers.RegressBoxesTPU(name='RegressBoxesTPU')([anchors, regression])
     boxes = keras_retinanet.layers.ClipBoxes(name='clipped_boxes')([image, boxes])
 
+    B = batch_size = 2
+    features_shape = [(B, 75, 75, 256), (B, 38, 38, 256), (B, 19, 19, 256), (B, 10, 10, 256), (B, 5, 5, 256)]
+    features_h_w   = [x[1:3] for x in features_shape]
+    N = n_anchor   = sum([x[0] * x[1] * 9 for x in features_h_w])
+    M = n_class    = 300
+
+    boxes.set_shape(shape=(B, N, 4))
+    classification.set_shape(shape=(B, N, M))
+
     # filter detections (apply NMS / score threshold / select top-k)
     detections = keras_retinanet.layers.FilterDetections(
         nms                   = nms,
         class_specific_filter = class_specific_filter,
         max_detections        = 100,
         name                  = 'filtered_detections'
-    )(tuple([boxes, classification] + other))
+    )(tuple([boxes, classification])) # + other))
 
     # TODO: how about boxes with unexpected values?
 

@@ -1,0 +1,232 @@
+# TODO: TPU ============================================================================================================
+---------------------------------------------------------------------------
+InvalidArgumentError                      Traceback (most recent call last)
+<ipython-input-3-07ceb31d7c3c> in <module>
+    474                 callbacks=[tb_callback],
+    475                 max_queue_size=1,
+--> 476                 initial_epoch=initial_epoch,
+    477             )
+    478
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/engine/training.py in _method_wrapper(self, *args, **kwargs)
+     64   def _method_wrapper(self, *args, **kwargs):
+     65     if not self._in_multi_worker_mode():  # pylint: disable=protected-access
+---> 66       return method(self, *args, **kwargs)
+     67
+     68     # Running inside `run_distribute_coordinator` already.
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/engine/training.py in fit(self, x, y, batch_size, epochs, verbose, callbacks, validation_split, validation_data, shuffle, class_weight, sample_weight, initial_epoch, steps_per_epoch, validation_steps, validation_batch_size, validation_freq, max_queue_size, workers, use_multiprocessing)
+    853                 context.async_wait()
+    854               logs = tmp_logs  # No error, now safe to assign to logs.
+--> 855               callbacks.on_train_batch_end(step, logs)
+    856         epoch_logs = copy.copy(logs)
+    857
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/callbacks.py in on_train_batch_end(self, batch, logs)
+    387     """
+    388     if self._should_call_train_batch_hooks:
+--> 389       logs = self._process_logs(logs)
+    390       self._call_batch_hook(ModeKeys.TRAIN, 'end', batch, logs=logs)
+    391
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/callbacks.py in _process_logs(self, logs)
+    263     """Turns tensors into numpy arrays or Python scalars."""
+    264     if logs:
+--> 265       return tf_utils.to_numpy_or_python_type(logs)
+    266     return {}
+    267
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/utils/tf_utils.py in to_numpy_or_python_type(tensors)
+    521     return t  # Don't turn ragged or sparse tensors to NumPy.
+    522
+--> 523   return nest.map_structure(_to_single_numpy_or_python_type, tensors)
+    524
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/util/nest.py in map_structure(func, *structure, **kwargs)
+    615
+    616   return pack_sequence_as(
+--> 617       structure[0], [func(*x) for x in entries],
+    618       expand_composites=expand_composites)
+    619
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/util/nest.py in <listcomp>(.0)
+    615
+    616   return pack_sequence_as(
+--> 617       structure[0], [func(*x) for x in entries],
+    618       expand_composites=expand_composites)
+    619
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/keras/utils/tf_utils.py in _to_single_numpy_or_python_type(t)
+    517   def _to_single_numpy_or_python_type(t):
+    518     if isinstance(t, ops.Tensor):
+--> 519       x = t.numpy()
+    520       return x.item() if np.ndim(x) == 0 else x
+    521     return t  # Don't turn ragged or sparse tensors to NumPy.
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/framework/ops.py in numpy(self)
+    959     """
+    960     # TODO(slebedev): Consider avoiding a copy for non-CPU or remote tensors.
+--> 961     maybe_arr = self._numpy()  # pylint: disable=protected-access
+    962     return maybe_arr.copy() if isinstance(maybe_arr, np.ndarray) else maybe_arr
+    963
+
+/opt/conda/lib/python3.7/site-packages/tensorflow/python/framework/ops.py in _numpy(self)
+    927       return self._numpy_internal()
+    928     except core._NotOkStatusException as e:
+--> 929       six.raise_from(core._status_to_exception(e.code, e.message), None)
+    930
+    931   @property
+
+/opt/conda/lib/python3.7/site-packages/six.py in raise_from(value, from_value)
+
+InvalidArgumentError: {{function_node __inference_train_function_73662}} Compilation failure: Detected unsupported operations when trying to compile graph mask_conditional_cond_true_63537_rewritten[] on XLA_TPU_JIT: FakeParam (No registered 'FakeParam' OpKernel for XLA_TPU_JIT devices compatible with node {{node FakeParam}}
+	 (OpKernel was found, but attributes didn't match) Requested Attributes: dtype=DT_VARIANT, shape=[]){{node FakeParam}}
+	 [[mask_conditional/cond]]
+	TPU compilation failed
+	 [[tpu_compile_succeeded_assert/_1148722717343778024/_7]]
+
+
+# TODO: OOM ============================================================================================================
+ResourceExhaustedError: {{function_node __inference_predict_function_36864}} Compilation failure: Ran out of memory in memory space hbm. Used 27.21G of 15.48G hbm. Exceeded hbm capacity by 11.72G.
+
+Total hbm usage >= 27.72G:
+    reserved        529.00M
+    program          27.21G
+    arguments       unknown size
+
+Output size unknown.
+
+Program hbm requirement 27.21G:
+    reserved           4.0K
+    global           212.0K
+    HLO temp         27.21G (17.7% utilization: Unpadded (4.82G) Padded (27.20G), 0.0% fragmentation (989.0K))
+
+  Largest program allocations in hbm:
+
+  1. Size: 17.25G
+     Operator: op_type="NonMaxSuppressionV4" op_name="non_max_suppression_padded/NonMaxSuppressionV4"
+     Shape: pred[67996,67996]{1,0:T(8,128)E(32)}
+     Unpadded size: 4.31G
+     Extra memory due to padding: 12.94G (4.0x expansion)
+     XLA label: %fusion.972 = pred[67996,67996]{1,0:T(8,128)E(32)} fusion(f32[67996]{0:T(1024)} %get-tuple-element.2810, f32[67996]{0:T(1024)} %get-tuple-element.2812, f32[67996]{0:T(1024)} %get-tuple-element.2814, f32[67996]{0:T(1024)} %get-tuple-element.2811, f32[67996]...
+     Allocation type: HLO temp
+     ==========================
+
+  2. Size: 9.73G
+     Shape: f32[300,67996,4]{2,1,0:T(8,128)}
+     Unpadded size: 311.26M
+     Extra memory due to padding: 9.42G (32.0x expansion)
+     XLA label: %copy.383 = f32[300,67996,4]{2,1,0:T(8,128)} copy(f32[300,67996,4]{1,2,0} %copy.382)
+     Allocation type: HLO temp
+     ==========================
+
+  3. Size: 87.89M
+     Operator: op_type="Conv2D" op_name="retinanet-mask/P3/Conv2D"
+     Shape: f32[16,75,75,256]{3,0,2,1:T(8,128)}
+     Unpadded size: 87.89M
+     XLA label: %fusion.227 = f32[16,75,75,256]{3,0,2,1:T(8,128)} fusion(f32[256]{0:T(256)} %get-tuple-element.10, f32[3,3,256,256]{3,2,1,0:T(8,128)} %get-tuple-element.11, f32[16,75,75,256]{3,0,2,1:T(8,128)} %custom-call.1499, f32[16,75,75,256]{3,0,2,1:T(8,128)} %convolu...
+     Allocation type: HLO temp
+     ==========================
+
+  4. Size: 78.97M
+     Operator: op_type="Transpose" op_name="transpose"
+     Shape: f32[300,67996]{1,0:T(8,128)}
+     Unpadded size: 77.81M
+     Extra memory due to padding: 1.15M (1.0x expansion)
+     XLA label: %fusion.989 = f32[300,67996]{1,0:T(8,128)} fusion(f32[67995,300]{0,1:T(8,128)} %fusion.990), kind=kLoop, calls=%fused_computation.733, metadata={op_type="Transpose" op_name="transpose"}
+     Allocation type: HLO temp
+     ==========================
+
+  5. Size: 22.56M
+     Operator: op_type="Conv2D" op_name="retinanet-mask/P4/Conv2D"
+     Shape: f32[16,38,38,256]{3,0,2,1:T(8,128)}
+     Unpadded size: 22.56M
+     XLA label: %fusion.436 = f32[16,38,38,256]{3,0,2,1:T(8,128)} fusion(f32[256]{0:T(256)} %get-tuple-element.12, f32[16,38,38,256]{3,0,2,1:T(8,128)} %fusion.437, f32[3,3,256,256]{3,2,1,0:T(8,128)} %get-tuple-element.13), kind=kOutput, calls=%fused_computation.283, metad...
+     Allocation type: HLO temp
+     ==========================
+
+  6. Size: 16.62M
+     Operator: op_type="Pack" op_name="retinanet-mask/clipped_boxes/stack"
+     Shape: f32[16,67995,4]{1,2,0:T(4,128)}
+     Unpad ... [truncated]
+
+
+
+# TODO: CPU ============================================================================================================
+Where: unsupported op: No registered 'Where' OpKernel for XLA_CPU_JIT devices compatible with node {{node Where}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: Where, function: __inference_train_step_29373
+
+
+StringFormat: unsupported op: No registered 'StringFormat' OpKernel for XLA_CPU_JIT devices compatible with node {{node StringFormat}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: StringFormat, function: __inference_train_step_29373
+
+
+PrintV2: unsupported op: No registered 'PrintV2' OpKernel for XLA_CPU_JIT devices compatible with node {{node PrintV2}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: PrintV2, function: __inference_train_step_29373
+
+
+gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad: unsupported op: No registered 'ResizeNearestNeighborGrad' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/retinanet-mask/P4_upsampled/resize/ResizeNearestNeighborGrad, function: __inference_train_step_29373
+
+
+FakeParam: unsupported op: No registered 'FakeParam' OpKernel for XLA_CPU_JIT devices compatible with node {{node FakeParam}}
+	 (OpKernel was found, but attributes didn't match) Requested Attributes: dtype=DT_VARIANT, shape=[]
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: cond, function: __inference_train_step_29373
+		Node: FakeParam, function: cond_true_24027_rewritten
+
+
+gradients/CropAndResize_grad/CropAndResizeGradImage: unsupported op: No registered 'CropAndResizeGradImage' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/CropAndResize_grad/CropAndResizeGradImage}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/cond/StatelessIf, function: __inference_train_step_29373
+		Node: gradients/map/while_grad/map/while_grad, function: cond_false_24028_grad_24449
+		Node: gradients/CropAndResize_grad/CropAndResizeGradImage, function: map_while_body_24113_grad_24469
+
+
+gradients/CropAndResize_grad/CropAndResizeGradBoxes: unsupported op: No registered 'CropAndResizeGradBoxes' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/CropAndResize_grad/CropAndResizeGradBoxes}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/cond/StatelessIf, function: __inference_train_step_29373
+		Node: gradients/map/while_grad/map/while_grad, function: cond_false_24028_grad_24449
+		Node: gradients/CropAndResize_grad/CropAndResizeGradBoxes, function: map_while_body_24113_grad_24469
+
+
+CropAndResize: unsupported op: No registered 'CropAndResize' OpKernel for XLA_CPU_JIT devices compatible with node {{node CropAndResize}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: cond, function: __inference_train_step_29373
+		Node: map/while, function: cond_false_24028_rewritten
+		Node: CropAndResize, function: map_while_body_24113_rewritten
+
+
+gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad: unsupported op: No registered 'ResizeNearestNeighborGrad' OpKernel for XLA_CPU_JIT devices compatible with node {{node gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad}}
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: gradient_tape/retinanet-mask/mask_submodel/roi_mask_upsample/while/retinanet-mask/mask_submodel/roi_mask_upsample/while_grad, function: __inference_train_step_29373
+		Node: gradients/upsample/resize/ResizeNearestNeighbor_grad/ResizeNearestNeighborGrad, function: retinanet-mask_mask_submodel_roi_mask_upsample_while_body_23834_grad_25657
+
+
+pad_to_bounding_box/Assert/Const: unsupported op: Const op with type DT_STRING is not supported by XLA.
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: retinanet-mask/roi_align_tpu/map/while, function: __inference_train_step_29373
+		Node: pad_to_bounding_box/Assert/Const, function: retinanet-mask_roi_align_tpu_map_while_body_23214_rewritten
+
+
+pad_to_bounding_box/Assert/Assert/data_0: unsupported op: Const op with type DT_STRING is not supported by XLA.
+	Stacktrace:
+		Node: __inference_train_step_29373, function:
+		Node: retinanet-mask/roi_align_tpu/map/while, function: __inference_train_step_29373
+		Node: pad_to_bounding_box/Assert/Assert/data_0, function: retinanet-mask_roi_align_tpu_map_while_body_23214_rewritten
+
+

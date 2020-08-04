@@ -456,25 +456,29 @@ if __name__ == '__main__':
         ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size, drop_remainder=True)
         ds_input = ds_batch.map(batch_to_input)
 
-        if 'keras_fit':
-            initial_epoch = 0
-            if CONFIG.snapshot is not None:
-                initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
+        import datetime
+        log_dir     = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        tb_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0)
 
-            import datetime
-            log_dir     = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            tb_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+        if 'keras_predict':
+            ds_input = ds_input.map(lambda x, y: x)
+            preds = model.predict(ds_input, steps=2, callbacks=[tb_callback, ])
 
-            # start training
-            model_train.fit(
-                x=ds_input,
-                steps_per_epoch=CONFIG.steps,
-                epochs=CONFIG.epochs,
-                verbose=1,
-                callbacks=[tb_callback],
-                max_queue_size=1,
-                initial_epoch=initial_epoch,
-            )
+        # if 'keras_fit':
+        #     initial_epoch = 0
+        #     if CONFIG.snapshot is not None:
+        #         initial_epoch = int((CONFIG.snapshot.split('_')[-1]).split('.')[0])
+        #
+        #     # start training
+        #     model_train.fit(
+        #         x=ds_input,
+        #         steps_per_epoch=CONFIG.steps,
+        #         epochs=CONFIG.epochs,
+        #         verbose=1,
+        #         callbacks=[tb_callback],
+        #         max_queue_size=1,
+        #         initial_epoch=initial_epoch,
+        #     )
 
         # if 'manual_train':
         #     @tf.function(experimental_compile=True)

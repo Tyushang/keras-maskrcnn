@@ -7,3 +7,6 @@ keras_maskrcnn.egg-info/
 /keras_maskrcnn/bin/logs
 /logs
 /snapshot
+
+*.nogit
+

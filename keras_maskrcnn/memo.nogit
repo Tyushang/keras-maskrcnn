@@ -1,0 +1,112 @@
+
+CSVGenerator output:
+batch = train_generator[0]
+batch: list:
+batch[0] is image array or X, has shape [batch_size, max_width, max_height, n_channel], dtype = 'float32'
+batch[1] is annotations or Y, list of length 3, assume anno = batch[1]
+    anno[0] is regression labels, has shape [batch_size, n_anchor, 4 + 1], dtype = 'float32'
+    anno[1] is classification labels, has shape [batch_size, n_anchor, n_class + 1], dtype = 'float32'
+    anno[2] is mask labels, has shape [batch_size, max_annotations,
+        bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_size], dtype = 'float32';
+
+MaskRCNN Output: list(len=7) >> [
+    'regression'    : ndarray(shape=[B, N, 4]),
+    'classification': ndarray(shape=[B, N, n_class]),
+    # 'others'      : [],
+    'boxes_masks'   : ndarray(shape=[B, k, 235204]),
+    'boxes'         : ndarray(shape=[B, k, 4]),
+    'scores'        : ndarray(shape=[B, k]),
+    'labels'        : ndarray(shape=[B, k]),
+    'masks'         : ndarray(shape=[B, k, 28, 28, n_class]),
+    # 'others'      : [],
+]
+where: B is batch size, N is total anchors, k is top-k anchors
+
+input of transform{
+    'image' : ndarray(shape=[width, height, n_channel], dtype='uint8'),
+    'masks' : list   (len=n_box) >> [
+        ndarray(shape=[width, height, 1], dtype='uint8'),
+        ...
+    ],
+    'labels': ndarray(shape=[n_box, ], dtype='float64'),
+    'bboxes': ndarray(shape=[n_box, 4], dtype='float64'),
+}
+output of transform{
+    'image' : ndarray(shape=[width, height, n_channel], dtype='uint8'),
+    'masks' : list   (len=n_box) >> [
+        ndarray(shape=[width, height, 1], dtype='uint8'),
+        ...
+    ],
+    'labels': list   (len=n_box) >> [
+        scalar(dtype=float64),
+        ...
+    ],
+    'bboxes': list   (len=n_box) >> [
+        tuple(len=4, dtype=float64),
+        ...
+    ],
+}
+
+Shape Analyze:
+image shape:        [2, 876, 1876, 3]   # [B, H, W, C]
+resnet50 C3,C4,C5:  (2, 110, 235, 512)
+                    (2,  55, 118, 1024)
+                    (2,  28,  59, 2048)
+retinanet/P3~P7:    (2, 110, 235, 256)  # [B, PiH, PiW, PiC]
+                    (2,  55, 118, 256)
+                    (2,  28,  59, 256)
+                    (2,  14,  30, 256)
+                    (2,   7,  15, 256)
+regression:         (2, 232650, 4)      # [B, PiH * PiW * n_anchor_centered, 4]
+                    (2,  58410, 4)
+                    (2,  14868, 4)
+                    (2,   3780, 4)
+                    (2,    945, 4)
+concat_regression:  [(310653, 4), (310653, 4)]  # [B, sum_i(PiH * PiW * n_anchor_centered), 4]
+
+
+classification:         (2, 232650, 300)
+                        (2,  58410, 300)
+                        (2,  14868, 300)
+                        (2,   3780, 300)
+                        (2,    945, 300)
+concat_classification:  [(310653, 300), (310653, 300)]
+
+model.output:       (2, 310653, 4)       # concat_regression
+                    (2, 310653, 300)     # concat_classification
+                    (2,    100, 235204)  # masks
+
+
+
+
+
+
+
+
+Problems:
+_1: TypeError: type object got multiple values for keyword argument 'training'
+    passing 'training' to Layer.__call__, do not passing it in SubLayer.call.
+
+_2: NotFoundError: {{function_node __inference_train_function_153679}} No registered 'PyFunc' OpKernel for \
+   'CPU' devices compatible with node {{node PyFunc}}
+
+_3: How to debug keras model:
+    _a: use "model.run_eagerly = True"(set breakpoint in call(), so it's hard to tell which layer is tracing).
+        see: https://stackoverflow.com/questions/42233963/how-can-i-print-the-intermediate-variables-in-the-loss-function-in-tensorflow-an
+    _b: use K.function.
+        see: https://keras.io/zh/getting-started/faq/
+
+_4: Run-time Error:
+    tensorflow.python.framework.errors_impl.InvalidArgumentError:  Requires delta != 0: 0
+         [[{{node gradient_tape/retinanet-mask/filtered_detections/map/while/retinanet-mask/filtered_detections/map/while_grad/body/_3101/gradients/TopKV2_grad/range}}]] [Op:__inference_train_function_75266]
+    when cast input image from uint8 to float32, it's easier to happen; when memory usage of computer is high, it's easier to happen;
+    So, we infer that: lack of memory is the cause of this error.
+
+WARNING:tensorflow:Skipping loading of weights for layer anchors_0 due to mismatch in number of weights (1 vs 0).
+
+difference between image dtype uint8 and float32?
+
+class Anchors, has incompatible Ops - Add ?
+
+
+
