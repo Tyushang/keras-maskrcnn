@@ -462,7 +462,7 @@ if __name__ == '__main__':
 
         if 'keras_predict':
             ds_input = ds_input.map(lambda x, y: x)
-            preds = model.predict(ds_input, steps=2, callbacks=[tb_callback, ])
+            preds = model.predict(ds_input, callbacks=[tb_callback, ], steps=5, verbose=1)
 
         # if 'keras_fit':
         #     initial_epoch = 0
