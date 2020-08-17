@@ -323,12 +323,12 @@ class ExampleGroup:
     @staticmethod
     def from_tf_dataset(ds_record: tf.data.Dataset, image_ids=None, klass_csv_path=KLASS_CSV_PATH, batch_size=8):
         if 'process-tf-dataset':
-            from keras_maskrcnn.utils.tf_dataset import parse_single_sequence_example, make_decoder
+            from keras_maskrcnn.utils.tf_dataset import parse_single_sequence_example, make_fn_decoder
 
             ds = ds_record.map(parse_single_sequence_example)
             if image_ids is not None:
                 ds = ds.filter(lambda ctx, _: tf.reduce_any(tf.equal(ctx['image_id'], image_ids)))
-            ds = ds.map(make_decoder(klass_csv_path)).padded_batch(batch_size)
+            ds = ds.map(make_fn_decoder(klass_csv_path)).padded_batch(batch_size)
 
         def _bytes_to_str(x):
             return x.decode('utf-8') if not isinstance(x, np.ndarray) else \
@@ -430,101 +430,101 @@ class ExampleGroup:
         return group
 
 
-if __name__ == '__main__':
-
-    mask_df: pd.DataFrame = pd.read_csv(MASK_CSV_PATH)
-
-    if 'from-generator':
-        from albumentations import *
-        bbox_params = BboxParams(format='pascal_voc', min_area=1.0, min_visibility=0.1, label_fields=['labels'])
-
-        transform_generator = Compose([
-            HorizontalFlip(p=0.5),
-            OneOf([
-                IAAAdditiveGaussianNoise(),
-                GaussNoise(),
-            ], p=0.1),
-            OneOf([
-                MotionBlur(p=.1),
-                MedianBlur(blur_limit=3, p=.1),
-                Blur(blur_limit=3, p=.1),
-            ], p=0.1),
-            ShiftScaleRotate(shift_limit=0.25, scale_limit=0.25, rotate_limit=20, p=1,
-                             border_mode=cv2.BORDER_CONSTANT),
-            OneOf([
-                # CLAHE(clip_limit=2),
-                IAASharpen(),
-                IAAEmboss(),
-                RandomBrightnessContrast(),
-            ], p=0.1),
-            OneOf([
-                RGBShift(p=1.0, r_shift_limit=(-10, 10), g_shift_limit=(-10, 10), b_shift_limit=(-10, 10)),
-                HueSaturationValue(p=1.0),
-            ], p=0.1),
-            ToGray(p=0.01),
-            ImageCompression(p=0.05, quality_lower=50, quality_upper=99),
-        ], bbox_params=bbox_params, p=1.0)
-
-        gen = CSVGenerator(
-            MASK_CSV_PATH,
-            KLASS_CSV_PATH,
-            image_dir=os.path.join(DATASET_DIR, 'train'),
-            transform_generator=transform_generator,
-            batch_size=4,
-            config=None,
-            image_min_side=800,
-            image_max_side=1024,
-            group_method=None,  # 'random',
-            is_rle=False,
-        )
-        group1 = ExampleGroup.from_generator(gen, 3)
-
-    if 'from-mask-csv':
-        group0 = ExampleGroup.from_mask_csv(MASK_CSV_PATH, image_ids=list(group1.examples.keys()))
-
-    if 'from-tf-dataset':
-        dir_tfrecord = '../ins-tfrecord'
-
-        image_ids = ['83fe588b6e01ef7a',
-                     '84c7775f391a85e4',
-                     '8736925341819488',
-                     '8746dc11f48a0d2c',
-                     '879c97c0e6abd298',
-                     '8836a53b50cb3e28',
-                     '884d87c19c1bdf88',
-                     '8952392367b3b61c']
-
-        fnames         = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
-        fnames         = tf.random.shuffle(fnames)
-        ds_fnames      = tf.data.Dataset.from_tensor_slices(fnames)  # .repeat()
-        ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset,
-                                              cycle_length=len(fnames),
-                                              block_length=4,
-                                              num_parallel_calls=tf.data.experimental.AUTOTUNE,)
-        ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
-        ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-
-        groups = ExampleGroup.from_tf_dataset(ds_raw_example, image_ids, batch_size=4)
-
-    if 'from-prediction':
-        from keras_maskrcnn.bin2.infer2 import *
-        if 'model' not in dir():
-            # model: tf.keras.Model = models.load_model(MODEL_PATH, backbone_name=BACKBONE)
-            backbone = models.backbone('resnet50')
-            model, *_ = create_models(
-                backbone_retinanet=backbone.maskrcnn,
-                num_classes=N_CLASS,
-                weights='../ins/weights/mask_rcnn_resnet50_oid_v1.0.h5',
-                class_specific_filter=False,
-                anchor_params=None
-            )
-            model.run_eagerly = True
-        ds0 = tf.data.Dataset.from_tensor_slices(glob.glob(f'{TEST_IMAGE_DIR}/*.jpg'))
-        ds1 = ds0.map(read_jpg).padded_batch(BATCH_SIZE)
-        inp = list(ds1.take(1))[0]
-
-        # noinspection PyUnboundLocalVariable
-        pred = model.predict_on_batch(inp)
-
-        group3 = ExampleGroup.from_prediction(inp.numpy(), pred)
+# if __name__ == '__main__':
+#
+#     mask_df: pd.DataFrame = pd.read_csv(MASK_CSV_PATH)
+#
+#     if 'from-generator':
+#         from albumentations import *
+#         bbox_params = BboxParams(format='pascal_voc', min_area=1.0, min_visibility=0.1, label_fields=['labels'])
+#
+#         transform_generator = Compose([
+#             HorizontalFlip(p=0.5),
+#             OneOf([
+#                 IAAAdditiveGaussianNoise(),
+#                 GaussNoise(),
+#             ], p=0.1),
+#             OneOf([
+#                 MotionBlur(p=.1),
+#                 MedianBlur(blur_limit=3, p=.1),
+#                 Blur(blur_limit=3, p=.1),
+#             ], p=0.1),
+#             ShiftScaleRotate(shift_limit=0.25, scale_limit=0.25, rotate_limit=20, p=1,
+#                              border_mode=cv2.BORDER_CONSTANT),
+#             OneOf([
+#                 # CLAHE(clip_limit=2),
+#                 IAASharpen(),
+#                 IAAEmboss(),
+#                 RandomBrightnessContrast(),
+#             ], p=0.1),
+#             OneOf([
+#                 RGBShift(p=1.0, r_shift_limit=(-10, 10), g_shift_limit=(-10, 10), b_shift_limit=(-10, 10)),
+#                 HueSaturationValue(p=1.0),
+#             ], p=0.1),
+#             ToGray(p=0.01),
+#             ImageCompression(p=0.05, quality_lower=50, quality_upper=99),
+#         ], bbox_params=bbox_params, p=1.0)
+#
+#         gen = CSVGenerator(
+#             MASK_CSV_PATH,
+#             KLASS_CSV_PATH,
+#             image_dir=os.path.join(DATASET_DIR, 'train'),
+#             transform_generator=transform_generator,
+#             batch_size=4,
+#             config=None,
+#             image_min_side=800,
+#             image_max_side=1024,
+#             group_method=None,  # 'random',
+#             is_rle=False,
+#         )
+#         group1 = ExampleGroup.from_generator(gen, 3)
+#
+#     if 'from-mask-csv':
+#         group0 = ExampleGroup.from_mask_csv(MASK_CSV_PATH, image_ids=list(group1.examples.keys()))
+#
+#     if 'from-tf-dataset':
+#         dir_tfrecord = '../ins-tfrecord'
+#
+#         image_ids = ['83fe588b6e01ef7a',
+#                      '84c7775f391a85e4',
+#                      '8736925341819488',
+#                      '8746dc11f48a0d2c',
+#                      '879c97c0e6abd298',
+#                      '8836a53b50cb3e28',
+#                      '884d87c19c1bdf88',
+#                      '8952392367b3b61c']
+#
+#         fnames         = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
+#         fnames         = tf.random.shuffle(fnames)
+#         ds_fnames      = tf.data.Dataset.from_tensor_slices(fnames)  # .repeat()
+#         ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset,
+#                                               cycle_length=len(fnames),
+#                                               block_length=4,
+#                                               num_parallel_calls=tf.data.experimental.AUTOTUNE,)
+#         ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
+#         ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+#
+#         groups = ExampleGroup.from_tf_dataset(ds_raw_example, image_ids, batch_size=4)
+#
+#     if 'from-prediction':
+#         from keras_maskrcnn.bin2.infer2 import *
+#         if 'model' not in dir():
+#             # model: tf.keras.Model = models.load_model(MODEL_PATH, backbone_name=BACKBONE)
+#             backbone = models.backbone('resnet50')
+#             model, *_ = create_models(
+#                 backbone_retinanet=backbone.maskrcnn,
+#                 num_classes=N_CLASS,
+#                 weights='../ins/weights/mask_rcnn_resnet50_oid_v1.0.h5',
+#                 class_specific_filter=False,
+#                 anchor_params=None
+#             )
+#             model.run_eagerly = True
+#         ds0 = tf.data.Dataset.from_tensor_slices(glob.glob(f'{TEST_IMAGE_DIR}/*.jpg'))
+#         ds1 = ds0.map(read_jpg).padded_batch(BATCH_SIZE)
+#         inp = list(ds1.take(1))[0]
+#
+#         # noinspection PyUnboundLocalVariable
+#         pred = model.predict_on_batch(inp)
+#
+#         group3 = ExampleGroup.from_prediction(inp.numpy(), pred)
 

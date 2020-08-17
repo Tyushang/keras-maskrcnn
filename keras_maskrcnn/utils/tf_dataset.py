@@ -22,7 +22,7 @@ parse_single_sequence_example = lambda x: tf.io.parse_single_sequence_example(
 )
 
 
-def make_decoder(klass_csv_path, image_h_w=None, image_dtype=tf.uint8):
+def make_fn_decoder(klass_csv_path, image_h_w=None, image_dtype=tf.uint8):
     """_decode_example need mid-to-no lookup table and image_h_w, so can't get decoder directly."""
     klass_df  = pd.read_csv(klass_csv_path, names=['MID', 'class_name'])
     mid_to_no = tf.lookup.StaticHashTable(
@@ -58,31 +58,35 @@ def make_decoder(klass_csv_path, image_h_w=None, image_dtype=tf.uint8):
     return _decode_example
 
 
-def to_model_input(batch):
-    bat_image       = batch['image']
-    bat_boxes       = batch['boxes']
-    bat_labels      = batch['labels']
-    bat_masks       = batch['masks']
-    bat_masks_shape = batch['masks_shape']
+def make_fn_to_model_input(n_class):
+    """_to_model_input need n_class, so can't get it directly."""
+    def _to_model_input(batch):
+        bat_image       = batch['image']
+        bat_boxes       = batch['boxes']
+        bat_labels      = batch['labels']
+        bat_masks       = batch['masks']
+        bat_masks_shape = batch['masks_shape']
 
-    # TODO: compute resize shape.
+        # TODO: compute resize shape.
 
-    bat_size, bat_n_anno, bat_h, bat_w, *_ = tf.unstack(tf.shape(bat_masks))
-    anchors = get_anchors_for_shape(image_shape=(bat_h, bat_w))
+        bat_size, bat_n_anno, bat_h, bat_w, *_ = tf.unstack(tf.shape(bat_masks))
+        anchors = get_anchors_for_shape(image_shape=(bat_h, bat_w))
 
-    bat_reg, bat_cls = get_anchor_targets_batch(anchors, bat_boxes, bat_labels, N_CLASS)
+        bat_reg, bat_cls = get_anchor_targets_batch(anchors, bat_boxes, bat_labels, n_class)
 
-    # bat_masks has shape: (batch size, max_annotations, 4 + 1 + 2 + padded_mask.size)
-    # last dim schema: x1 + y1 + x2 + y2 + label + padded_width + padded_height + padded_mask(flatten image-dims)
-    pos_0 = bat_boxes
-    pos_4 = tf.cast(bat_labels[..., tf.newaxis], tf.float32)
-    pos_5 = tf.broadcast_to(tf.cast(bat_w, tf.float32), shape=(bat_size, bat_n_anno, 1))
-    pos_6 = tf.broadcast_to(tf.cast(bat_h, tf.float32), shape=(bat_size, bat_n_anno, 1))
-    pos_7 = tf.reshape(bat_masks, shape=(bat_size, bat_n_anno, -1))
+        # bat_masks has shape: (batch size, max_annotations, 4 + 1 + 2 + padded_mask.size)
+        # last dim schema: x1 + y1 + x2 + y2 + label + padded_width + padded_height + padded_mask(flatten image-dims)
+        pos_0 = bat_boxes
+        pos_4 = tf.cast(bat_labels[..., tf.newaxis], tf.float32)
+        pos_5 = tf.broadcast_to(tf.cast(bat_w, tf.float32), shape=(bat_size, bat_n_anno, 1))
+        pos_6 = tf.broadcast_to(tf.cast(bat_h, tf.float32), shape=(bat_size, bat_n_anno, 1))
+        pos_7 = tf.reshape(bat_masks, shape=(bat_size, bat_n_anno, -1))
 
-    bat_masks = tf.concat([pos_0, pos_4, pos_5, pos_6, pos_7], axis=-1)
+        bat_masks = tf.concat([pos_0, pos_4, pos_5, pos_6, pos_7], axis=-1)
 
-    return bat_image, (bat_reg, bat_cls, bat_masks)
+        return bat_image, (bat_reg, bat_cls, bat_masks)
+
+    return _to_model_input
 
 
 def get_anchor_targets_batch(
@@ -196,55 +200,55 @@ def get_anchors_for_shape(image_shape,  # (height, width)
     return tf.concat(all_anchors, axis=0)
 
 
-if __name__ == '__main__':
-    from keras_maskrcnn.bin2.train2 import *
-
-    if not os.path.isdir(CONFIG.snapshot_path):
-        os.makedirs(CONFIG.snapshot_path)
-
-    with STRATEGY.scope():
-        # model, training_model, prediction_model = create_models(
-        #     backbone_retinanet='resnet50',
-        #     n_class=N_CLASS,
-        #     weights=CONFIG.weights,
-        #     nms=True,
-        #     freeze_backbone=CONFIG.freeze_backbone,
-        #     class_specific_filter=CONFIG.class_specific_filter,
-        #     anchor_params=None
-        # )
-        # print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
-        # if CONFIG.lr > 0.0:
-        #     K.set_value(model.optimizer.lr, CONFIG.lr)
-        #     print('Updated learning rate: {}'.format(K.get_value(model.optimizer.lr)))
-
-        image_ids = ['83fe588b6e01ef7a',
-                     '84c7775f391a85e4',
-                     '8736925341819488',
-                     '8746dc11f48a0d2c',
-                     '879c97c0e6abd298',
-                     '8836a53b50cb3e28',
-                     '884d87c19c1bdf88',
-                     '8952392367b3b61c']
-        # image_ids = tf.convert_to_tensor(image_ids)
-
-        fnames         = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
-        fnames         = tf.random.shuffle(fnames)
-        ds_fnames      = tf.data.Dataset.from_tensor_slices(fnames)  # .repeat()
-        # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
-        ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
-        ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
-        ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-
-        ds_example  = ds_raw_example.map(parse_single_sequence_example)
-        ds_filtered = ds_example.filter(lambda ctx, seq: tf.reduce_any(tf.equal(ctx['image_id'], image_ids)))
-        ds_decoded  = ds_filtered.map(make_decoder(CONFIG.class_names))
-
-
-        ds_batch    = ds_decoded.padded_batch(4, drop_remainder=True)
-        ds_input    = ds_batch.map(to_model_input)
-
-
-        tt = list(ds_batch)
+# if __name__ == '__main__':
+#     from keras_maskrcnn.bin2.train2 import *
+#
+#     if not os.path.isdir(CONFIG.snapshot_path):
+#         os.makedirs(CONFIG.snapshot_path)
+#
+#     with STRATEGY.scope():
+#         # model, training_model, prediction_model = create_models(
+#         #     backbone_retinanet='resnet50',
+#         #     n_class=N_CLASS,
+#         #     weights=CONFIG.weights,
+#         #     nms=True,
+#         #     freeze_backbone=CONFIG.freeze_backbone,
+#         #     class_specific_filter=CONFIG.class_specific_filter,
+#         #     anchor_params=None
+#         # )
+#         # print('Learning rate: {}'.format(K.get_value(model.optimizer.lr)))
+#         # if CONFIG.lr > 0.0:
+#         #     K.set_value(model.optimizer.lr, CONFIG.lr)
+#         #     print('Updated learning rate: {}'.format(K.get_value(model.optimizer.lr)))
+#
+#         image_ids = ['83fe588b6e01ef7a',
+#                      '84c7775f391a85e4',
+#                      '8736925341819488',
+#                      '8746dc11f48a0d2c',
+#                      '879c97c0e6abd298',
+#                      '8836a53b50cb3e28',
+#                      '884d87c19c1bdf88',
+#                      '8952392367b3b61c']
+#         # image_ids = tf.convert_to_tensor(image_ids)
+#
+#         fnames         = tf.io.matching_files(f'{dir_tfrecord}/train/*.tfrecord')
+#         fnames         = tf.random.shuffle(fnames)
+#         ds_fnames      = tf.data.Dataset.from_tensor_slices(fnames)  # .repeat()
+#         # ds_raw_example = tf.data.TFRecordDataset(ds_fnames)
+#         ds_raw_example = ds_fnames.interleave(tf.data.TFRecordDataset)
+#         ds_raw_example = ds_raw_example.shuffle(buffer_size=100, reshuffle_each_iteration=False)
+#         ds_raw_example = ds_raw_example.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+#
+#         ds_example  = ds_raw_example.map(parse_single_sequence_example)
+#         ds_filtered = ds_example.filter(lambda ctx, seq: tf.reduce_any(tf.equal(ctx['image_id'], image_ids)))
+#         ds_decoded  = ds_filtered.map(make_fn_decoder(CONFIG.class_names))
+#
+#
+#         ds_batch    = ds_decoded.padded_batch(4, drop_remainder=True)
+#         ds_input    = ds_batch.map(make_fn_to_model_input(N_CLASS))
+#
+#
+#         tt = list(ds_batch)
 
 
 

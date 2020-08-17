@@ -96,7 +96,7 @@ else:
         pretrained_weights = './weights/resnet50_oid_v1.0.1.h5'
         dir_tfrecord       = 'gs://tyu-ins-sample-tfrecord'
         batch_size         = 16 * STRATEGY.num_replicas_in_sync if TPU else \
-                             4  * STRATEGY.num_replicas_in_sync if GPU else \
+                             8  * STRATEGY.num_replicas_in_sync if GPU else \
                              4
     # Dir to save checkpoint.
     dir_snapshot = './keras_maskrcnn/bin/snapshot/'
@@ -124,7 +124,7 @@ else:
     ]
     CONFIG = parser.parse_args(CLI_ARGS)
 
-FIX_H_W = (600, 600)
+FIX_INPUT_H_W = None  # (600, 600)
 # tf.keras.backend.clear_session()
 # tf.config.optimizer.set_jit(True) # Enable XLA.
 # _________________________________________________________________________________________________
@@ -165,6 +165,9 @@ from albumentations import *
 from keras_maskrcnn.utils.ins_utils import *
 from keras_maskrcnn.models.resnet import resnet_maskrcnn
 
+from keras_maskrcnn.utils.tf_dataset import make_fn_decoder, make_fn_to_model_input
+
+
 def model_with_weights(model, weights, skip_mismatch):
     if weights is not None:
         model.load_weights(weights, by_name=True, skip_mismatch=skip_mismatch)
@@ -178,7 +181,7 @@ def create_models(backbone_retinanet, n_class, weights, nms=True, freeze_backbon
         resnet_maskrcnn(
             n_class,
             backbone=backbone_retinanet,
-            input_shape=(*FIX_H_W, 3) if FIX_H_W is not None else (None, None, 3),
+            input_shape=(*FIX_INPUT_H_W, 3) if FIX_INPUT_H_W is not None else (None, None, 3),
             nms=nms,
             class_specific_filter=class_specific_filter,
             modifier=modifier,
@@ -289,8 +292,8 @@ if __name__ == '__main__':
                 'li_box'       : tf.io.FixedLenSequenceFeature([4], tf.float32),
             }
         ))
-        ds_batch = ds_example.map(_decode_example).padded_batch(CONFIG.batch_size, drop_remainder=True)
-        ds_input = ds_batch.map(batch_to_input)
+        ds_batch = ds_example.map(make_fn_decoder(CONFIG.class_names)).padded_batch(CONFIG.batch_size, drop_remainder=True)
+        ds_input = ds_batch.map(make_fn_to_model_input(N_CLASS))
 
         import datetime
         log_dir     = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
