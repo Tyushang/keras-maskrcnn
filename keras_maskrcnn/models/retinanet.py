@@ -192,6 +192,6 @@ def retinanet_mask(
     trainable_outputs = [ConcatenateBoxes(name=name)([boxes, output]) for (name, _), output in zip(roi_submodels, maskrcnn_outputs)]
 
     # reconstruct the new output
-    outputs = [regression, classification] + other + trainable_outputs  # + detections + maskrcnn_outputs
+    outputs = [regression, classification] + other + trainable_outputs + detections + maskrcnn_outputs
 
     return tf.keras.models.Model(inputs=inputs, outputs=outputs, name=name_retinanet_mask)

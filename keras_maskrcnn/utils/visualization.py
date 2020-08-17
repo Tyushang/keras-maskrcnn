@@ -50,6 +50,12 @@ def draw_mask(image, box, mask, label=None, color=None, binarize_threshold=0.5):
     return indices
 
 
+def is_dummy_box(box):
+    x1, y1, x2, y2 = box.astype('int')
+    h, w = (y2 - y1), (x2 - x1)
+    return h * w < 1
+
+
 def draw_masks(image, boxes, masks, labels=None, color=None, binarize_threshold=0.5):
     """ Draws a list of masks given a list of boxes.
 
@@ -68,5 +74,6 @@ def draw_masks(image, boxes, masks, labels=None, color=None, binarize_threshold=
 
     indices = []
     for box, mask, label in zip(boxes, masks, labels):
-        indices.append(draw_mask(image, box, mask, label=label, color=color, binarize_threshold=binarize_threshold))
+        if not is_dummy_box(box):
+            indices.append(draw_mask(image, box, mask, label=label, color=color, binarize_threshold=binarize_threshold))
     return indices

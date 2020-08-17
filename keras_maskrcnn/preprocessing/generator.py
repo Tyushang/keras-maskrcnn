@@ -50,7 +50,8 @@ class Generator(Sequence):
         transform_parameters=None,
         compute_shapes=guess_shapes,
         compute_anchor_targets=anchor_targets_bbox,
-        config=None
+        config=None,
+        preprocess_image_mode='tf',
     ):
         self.transform_generator    = transform_generator
         self.batch_size             = int(batch_size)
@@ -62,6 +63,7 @@ class Generator(Sequence):
         self.compute_shapes         = compute_shapes
         self.compute_anchor_targets = compute_anchor_targets
         self.config                 = config
+        self.preprocess_image_mode  = preprocess_image_mode
 
         # Define groups
         self.group_images()
@@ -161,7 +163,7 @@ class Generator(Sequence):
         return resize_image(image, min_side=self.image_min_side, max_side=self.image_max_side)
 
     def preprocess_image(self, image):
-        return preprocess_image(image)
+        return preprocess_image(image, mode=self.preprocess_image_mode)
 
     def preprocess_group_entry(self, image, annotations):
         """ Preprocess image and its annotations.
@@ -237,29 +239,29 @@ class Generator(Sequence):
         """ Compute target outputs for the network using images and their annotations.
         """
         # get the max image shape
-        max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
+        h_bat, w_bat, c_bat = max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
         anchors   = self.generate_anchors(max_shape)
-
-        batches = self.compute_anchor_targets(
-            anchors,
-            image_group,
-            annotations_group,
-            self.num_classes()
-        )
+        batches   = self.compute_anchor_targets(anchors,
+                                                image_group,
+                                                annotations_group,
+                                                self.num_classes())
 
         # copy all annotations / masks to the batch
-        max_annotations = max(len(a['masks']) for a in annotations_group)
+        M = max_annotations = max(len(a['masks']) for a in annotations_group)
         # masks_batch has shape: (batch size, max_annotations, bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_dimension)
-        masks_batch     = np.zeros((self.batch_size, max_annotations, 5 + 2 + max_shape[0] * max_shape[1]), dtype=K.floatx())
-        for index, annotations in enumerate(annotations_group):
-            masks_batch[index, :annotations['bboxes'].shape[0], :4] = annotations['bboxes']
-            masks_batch[index, :annotations['labels'].shape[0], 4] = annotations['labels']
-            masks_batch[index, :, 5] = max_shape[1]  # width
-            masks_batch[index, :, 6] = max_shape[0]  # height
+        masks_batch = np.zeros((self.batch_size, M, 5 + 2 + h_bat * w_bat), dtype=K.floatx())
+        for i_elem, annotations in enumerate(annotations_group):
+            masks_batch[i_elem, :annotations['bboxes'].shape[0], :4] = annotations['bboxes']
+            masks_batch[i_elem, :annotations['labels'].shape[0], 4]  = annotations['labels']
+            masks_batch[i_elem, :, 5] = w_bat  # width
+            masks_batch[i_elem, :, 6] = h_bat  # height
 
             # add flattened mask
-            for mask_index, mask in enumerate(annotations['masks']):
-                masks_batch[index, mask_index, 7:7 + (mask.shape[0] * mask.shape[1])] = mask.flatten()
+            for i_mask, mask in enumerate(annotations['masks']):
+                # mask should be padded before flatten.
+                h, w, *_ = mask.shape
+                mask_padded = np.pad(mask, ((0, h_bat - h), (0, w_bat - w)), mode='constant', constant_values=0)
+                masks_batch[i_elem, i_mask, 7: ] = mask_padded.flatten()
 
         return list(batches) + [masks_batch]
 

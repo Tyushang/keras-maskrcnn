@@ -207,7 +207,7 @@ class CSVGenerator(Generator):
             annotations['bboxes'][idx, 3] = float(anno['y2'])  # * mask.shape[0])  # = float(anno['y2']) ?
             annotations['labels'][idx] = self.mid_to_no[anno['label_name']]
 
-            mask = (mask > 0).astype(np.uint8)  # convert from 0-255 to binary mask  # convert from 0-255 to binary mask
+            mask = (mask > 0).astype(np.uint8)  # convert from 0-255 to binary mask
             annotations['masks'].append(mask)   # (np.expand_dims(mask, axis=-1))
 
         return annotations
@@ -287,40 +287,40 @@ class CSVGenerator(Generator):
         self.groups = [[indexes[i % len(indexes)] for i in range(start, start + self.batch_size)]
                        for start in range(0, len(indexes), self.batch_size)]
 
-    def compute_targets(self, image_group, annotations_group):
-        """ Compute target outputs for the network using images and their anno.
-        """
-        # get the max image shape
-        max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
-        anchors   = self.generate_anchors(max_shape)
-
-        batches = self.compute_anchor_targets(
-            anchors,
-            image_group,
-            annotations_group,
-            self.num_classes()
-        )
-
-        # copy all anno / masks to the batch
-        max_annotations = max(len(a['masks']) for a in annotations_group)
-        # masks_batch has shape: (batch size, max_annotations, bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_dimension)
-        masks_batch = np.zeros((self.batch_size, max_annotations, 5 + 2 + max_shape[0] * max_shape[1]), dtype=K.floatx())
-        for index, annotations in enumerate(annotations_group):
-            try:
-                masks_batch[index, :annotations['bboxes'].shape[0], :4] = annotations['bboxes']
-            except:
-                print('Error in compute targets!')
-                print(index, annotations_group)
-
-            masks_batch[index, :annotations['labels'].shape[0], 4] = annotations['labels']
-            masks_batch[index, :, 5] = max_shape[1]  # width
-            masks_batch[index, :, 6] = max_shape[0]  # height
-
-            # add flattened mask
-            for mask_index, mask in enumerate(annotations['masks']):
-                masks_batch[index, mask_index, 7:7 + (mask.shape[0] * mask.shape[1])] = mask.flatten()
-
-        return list(batches) + [masks_batch]
+    # def compute_targets(self, image_group, annotations_group):
+    #     """ Compute target outputs for the network using images and their anno.
+    #     """
+    #     # get the max image shape
+    #     max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
+    #     anchors   = self.generate_anchors(max_shape)
+    #
+    #     batches = self.compute_anchor_targets(
+    #         anchors,
+    #         image_group,
+    #         annotations_group,
+    #         self.num_classes()
+    #     )
+    #
+    #     # copy all anno / masks to the batch
+    #     max_annotations = max(len(a['masks']) for a in annotations_group)
+    #     # masks_batch has shape: (batch size, max_annotations, bbox_x1 + bbox_y1 + bbox_x2 + bbox_y2 + label + width + height + max_image_dimension)
+    #     masks_batch = np.zeros((self.batch_size, max_annotations, 5 + 2 + max_shape[0] * max_shape[1]), dtype=K.floatx())
+    #     for index, annotations in enumerate(annotations_group):
+    #         try:
+    #             masks_batch[index, :annotations['bboxes'].shape[0], :4] = annotations['bboxes']
+    #         except:
+    #             print('Error in compute targets!')
+    #             print(index, annotations_group)
+    #
+    #         masks_batch[index, :annotations['labels'].shape[0], 4] = annotations['labels']
+    #         masks_batch[index, :, 5] = max_shape[1]  # width
+    #         masks_batch[index, :, 6] = max_shape[0]  # height
+    #
+    #         # add flattened mask
+    #         for mask_index, mask in enumerate(annotations['masks']):
+    #             masks_batch[index, mask_index, 7:7 + (mask.shape[0] * mask.shape[1])] = mask.flatten()
+    #
+    #     return list(batches) + [masks_batch]
 # _________________________________________________________________________________________________
 """
 Copyright 2017-2018 Fizyr (https://fizyr.com)

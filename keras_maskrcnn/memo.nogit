@@ -13,14 +13,14 @@ MaskRCNN Output: list(len=7) >> [
     'regression'    : ndarray(shape=[B, N, 4]),
     'classification': ndarray(shape=[B, N, n_class]),
     # 'others'      : [],
-    'boxes_masks'   : ndarray(shape=[B, k, 235204]),
-    'boxes'         : ndarray(shape=[B, k, 4]),
-    'scores'        : ndarray(shape=[B, k]),
-    'labels'        : ndarray(shape=[B, k]),
-    'masks'         : ndarray(shape=[B, k, 28, 28, n_class]),
+    'boxes_masks'   : ndarray(shape=[B, K, 235204]),
+    'boxes'         : ndarray(shape=[B, K, 4]),
+    'scores'        : ndarray(shape=[B, K]),
+    'labels'        : ndarray(shape=[B, K]),
+    'masks'         : ndarray(shape=[B, K, 28, 28, n_class]),
     # 'others'      : [],
 ]
-where: B is batch size, N is total anchors, k is top-k anchors
+where: B is batch size, N is total anchors, k is top-K anchors
 
 input of transform{
     'image' : ndarray(shape=[width, height, n_channel], dtype='uint8'),
@@ -77,10 +77,19 @@ model.output:       (2, 310653, 4)       # concat_regression
                     (2,    100, 235204)  # masks
 
 
+When Augmentation: different operations to different kwargs:
+class DualTransform(BasicTransform):
+    """Transform for segmentation task."""
 
-
-
-
+    @property
+    def targets(self):
+        return {
+            "image": self.apply,
+            "mask": self.apply_to_mask,
+            "masks": self.apply_to_masks,
+            "bboxes": self.apply_to_bboxes,
+            "keypoints": self.apply_to_keypoints,
+        }
 
 
 Problems:
@@ -107,6 +116,8 @@ WARNING:tensorflow:Skipping loading of weights for layer anchors_0 due to mismat
 difference between image dtype uint8 and float32?
 
 class Anchors, has incompatible Ops - Add ?
+
+model input: RGB or BGR?
 
 
 

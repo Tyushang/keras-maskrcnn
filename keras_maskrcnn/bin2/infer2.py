@@ -60,10 +60,12 @@ storage_client = storage.Client(project=PROJECT_ID)
 def read_jpg(path):
     return tf.image.decode_jpeg(tf.io.read_file(path))
 
+
 def model_with_weights(model, weights, skip_mismatch):
     if weights is not None:
         model.load_weights(weights, by_name=True, skip_mismatch=skip_mismatch)
     return model
+
 
 def create_models(backbone_retinanet, num_classes, weights, freeze_backbone=False, class_specific_filter=True, anchor_params=None):
     from keras_retinanet.utils.model import freeze as freeze_model

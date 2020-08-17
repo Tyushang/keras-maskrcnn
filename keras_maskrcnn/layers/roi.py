@@ -128,10 +128,10 @@ class RoiAlignTPU(layers.Layer):
         return levels
 
     def call(self, inputs, **kwargs):
-        image_shape   = inputs[0]  # K.cast(inputs[0], K.floatx())
-        bat_boxes_abs = inputs[1]  # K.stop_gradient(inputs[1])
-        bat_scores    = inputs[2]  # K.stop_gradient(inputs[2])
-        bat_features  = inputs[3:]  # [K.stop_gradient(i) for i in inputs[3:]]
+        image_shape   = K.cast(inputs[0], K.floatx())
+        bat_boxes_abs = K.stop_gradient(inputs[1])
+        bat_scores    = K.stop_gradient(inputs[2])
+        bat_features  = [K.stop_gradient(i) for i in inputs[3:]]
 
         if 'check_boxes':
             b, h, w, *_ = tf.unstack(image_shape, name='tyu_ra_unstack137')
