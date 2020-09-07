@@ -44,12 +44,15 @@ parser.add_argument('--group_method',     help='How to form batches', default='r
 
 # _________________________________________________________________________________________________
 # Configurations:
+import tensorflow as tf
+
 RUN_ON = 'local' if os.path.exists('C:/') else \
          'kaggle' if os.path.exists('/kaggle') else \
          'gcp'
 
+GPU = tf.config.experimental.list_physical_devices('GPU')
+
 try:  # Detect hardware, return appropriate distribution strategy
-    import tensorflow as tf
     TPU = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
     print('Running on TPU ', TPU.cluster_spec().as_dict()['worker'])
     tf.config.experimental_connect_to_cluster(TPU)
@@ -58,10 +61,9 @@ try:  # Detect hardware, return appropriate distribution strategy
     STRATEGY = tf.distribute.experimental.TPUStrategy(TPU)
 except ValueError:
     TPU      = None
+    # STRATEGY = tf.distribute.MirroredStrategy() if GPU else\
+    #            tf.distribute.get_strategy()
     STRATEGY = tf.distribute.get_strategy()
-
-GPU = tf.config.experimental.list_physical_devices('GPU')
-GPU = GPU[0] if GPU else None
 
 if '--csv' in sys.argv:
     # if cli is used, set config by cli args.
@@ -96,7 +98,7 @@ else:
         pretrained_weights = './weights/resnet50_oid_v1.0.1.h5'
         dir_tfrecord       = 'gs://tyu-ins-sample-tfrecord'
         batch_size         = 16 * STRATEGY.num_replicas_in_sync if TPU else \
-                             8  * STRATEGY.num_replicas_in_sync if GPU else \
+                             4  * STRATEGY.num_replicas_in_sync if GPU else \
                              4
     # Dir to save checkpoint.
     dir_snapshot = './keras_maskrcnn/bin/snapshot/'
@@ -107,7 +109,7 @@ else:
         # '--imagenet-weights',
         # '--freeze-backbone',
         '--weights', pretrained_weights,
-        '--epochs', '10',
+        '--epochs', '2',
         '--gpu', '2',
         '--steps', '20',
         '--snapshot-path', dir_snapshot,
@@ -201,7 +203,7 @@ def create_models(backbone_retinanet, n_class, weights, nms=True, freeze_backbon
             'classification': keras_retinanet.losses.focal(),
             'masks'         : losses.mask(),
         },
-        optimizer=opt
+        optimizer=opt,
     )
 
     return model, training_model, prediction_model
@@ -253,7 +255,7 @@ if __name__ == '__main__':
                 anchor_params=anchor_params
             )
         # print model summary
-        model.summary()
+        # model.summary()
         return model, training_model, prediction_model
 
     loss_fn_reg = keras_retinanet.losses.smooth_l1()
@@ -292,12 +294,15 @@ if __name__ == '__main__':
                 'li_box'       : tf.io.FixedLenSequenceFeature([4], tf.float32),
             }
         ))
-        ds_batch = ds_example.map(make_fn_decoder(CONFIG.class_names)).padded_batch(CONFIG.batch_size, drop_remainder=True)
-        ds_input = ds_batch.map(make_fn_to_model_input(N_CLASS))
+        ds_decoded = ds_example.map(make_fn_decoder(CONFIG.class_names, image_h_w=(600, 600)))
+        ds_batch   = ds_decoded.padded_batch(CONFIG.batch_size, drop_remainder=True)
+        ds_input   = ds_batch.map(make_fn_to_model_input(N_CLASS))
 
         import datetime
         log_dir     = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        tb_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0)
+        tb_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir,
+                                                     # histogram_freq=1,
+                                                     profile_batch='10, 15')
 
         # if 'keras_predict':
         #     ds_input = ds_input.map(lambda x, y: x)
@@ -315,8 +320,8 @@ if __name__ == '__main__':
                 epochs=CONFIG.epochs,
                 verbose=1,
                 callbacks=[tb_callback],
-                max_queue_size=1,
-                initial_epoch=initial_epoch,
+                # max_queue_size=1,
+                # initial_epoch=initial_epoch,
             )
 
         # if 'manual_train':
